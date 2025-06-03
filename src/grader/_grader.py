@@ -13,6 +13,16 @@ import typer
 
 app = typer.Typer(help="CLI for compiling and running Java test files")
 
+# Constants
+SUCCESS_EXIT_CODE = 0
+ERROR_EXIT_CODE = 1
+
+
+class FileOperationError(Exception):
+    """Exception raised for errors in file operations."""
+
+    pass
+
 
 class Writer:
     """
@@ -66,30 +76,55 @@ def find_test_files(test_dir: Path, prefix: str, writer: Writer) -> list[Path]:
         List of Path objects for test files that match the criteria
 
     Raises:
-        SystemExit: If no test files are found or if the main test file doesn't exist
+        FileOperationError: If no test files are found or the directory doesn't exist
     """
     if not test_dir.exists() or not test_dir.is_dir():
-        writer.always_echo(
-            f"Error: Test directory {test_dir} does not exist or is not a directory."
+        raise FileOperationError(
+            f"Test directory {test_dir} does not exist or is not a directory."
         )
-        sys.exit(1)
 
     test_files = list(test_dir.glob(f"{prefix}*.java"))
 
     if not test_files:
-        writer.always_echo(
-            f"Error: No test files found with prefix '{prefix}' in {test_dir}"
+        raise FileOperationError(
+            f"No test files found with prefix '{prefix}' in {test_dir}"
         )
-        sys.exit(1)
 
     main_test_file = test_dir / f"{prefix}.java"
 
     if not main_test_file.exists():
-        writer.always_echo(f"Error: Main test file {main_test_file} does not exist.")
-        writer.always_echo(f"Found test files: {[f.name for f in test_files]}")
-        sys.exit(1)
+        raise FileOperationError(
+            f"Main test file {main_test_file} does not exist.\n"
+            f"Found test files: {[f.name for f in test_files]}"
+        )
 
     return test_files
+
+
+def safe_copy_file(source: Path, target: Path, writer: Writer) -> None:
+    """
+    Safely copy a file, ensuring the target is writable.
+
+    Args:
+        source: Source file path
+        target: Target file path
+        writer: Writer object for console output
+
+    Raises:
+        FileOperationError: If file copy fails
+    """
+    # Delete existing file if it exists
+    if target.exists():
+        safe_delete_file(target, writer)
+
+    # Copy the file
+    writer.echo(f"Copying {source} to {target}")
+    try:
+        shutil.copy2(source, target)
+    except PermissionError:
+        raise FileOperationError(f"Permission denied when copying to {target}")
+    except Exception as e:
+        raise FileOperationError(f"Failed to copy {source} to {target}: {e}")
 
 
 def copy_test_files(test_files: list[Path], target_dir: Path, writer: Writer) -> None:
@@ -103,94 +138,66 @@ def copy_test_files(test_files: list[Path], target_dir: Path, writer: Writer) ->
         writer: Writer object for console output
 
     Raises:
-        SystemExit: If the target directory does not exist or is not a directory
+        FileOperationError: If file operations fail
     """
-    if not target_dir.exists() or not target_dir.is_dir():
-        writer.always_echo(
-            f"Error: Target directory {target_dir} does not exist or is not a directory."
-        )
-        sys.exit(1)
+    # Ensure target directory is writable
+    ensure_directory_writable(target_dir, writer)
 
-    # Check write permissions on target directory
-    if not os.access(target_dir, os.W_OK):
-        writer.echo(f"Adding write permissions to directory: {target_dir}")
-        try:
-            # Get current permissions and add user write permission
-            current_mode = target_dir.stat().st_mode
-            new_mode = current_mode | 0o200  # Add user write permission
-            os.chmod(target_dir, new_mode)
-            writer.echo(f"Successfully added write permissions to {target_dir}")
-        except Exception as e:
-            writer.always_echo(
-                f"[red]Warning:[/red] Failed to add write permissions: {e}"
-            )
-            writer.always_echo("Attempting to continue with copy operation...")
-
+    # Copy all test files
     for test_file in test_files:
         target_file = target_dir / test_file.name
-
-        # Delete existing file if it exists
-        if target_file.exists():
-            writer.echo(f"Removing existing file: {target_file}")
-            try:
-                target_file.unlink()
-            except PermissionError:
-                writer.echo(
-                    f"Insufficient permissions to remove {target_file}, trying to add write permissions"
-                )
-                try:
-                    os.chmod(
-                        target_file, target_file.stat().st_mode | 0o200
-                    )  # Add write permission
-                    target_file.unlink()
-                except Exception as e:
-                    writer.always_echo(
-                        f"[red]Error:[/red] Could not remove existing file {target_file}: {e}"
-                    )
-                    sys.exit(1)
-
-        # Copy the test file
-        writer.echo(f"Copying {test_file} to {target_file}")
-        try:
-            shutil.copy2(test_file, target_file)
-        except PermissionError:
-            writer.always_echo(
-                f"[red]Permission denied[/red] when copying to {target_file}"
-            )
-            sys.exit(1)
+        safe_copy_file(test_file, target_file, writer)
 
     # Also copy TestUtils.java if it exists in the test directory
     test_dir = test_files[0].parent
     utils_file = test_dir / "TestUtils.java"
     if utils_file.exists():
         target_utils_file = target_dir / "TestUtils.java"
-        if target_utils_file.exists():
-            writer.echo(f"Removing existing file: {target_utils_file}")
-            try:
-                target_utils_file.unlink()
-            except PermissionError:
-                writer.echo(
-                    f"Insufficient permissions to remove {target_utils_file}, trying to add write permissions"
-                )
-                try:
-                    os.chmod(
-                        target_utils_file, target_utils_file.stat().st_mode | 0o200
-                    )  # Add write permission
-                    target_utils_file.unlink()
-                except Exception as e:
-                    writer.always_echo(
-                        f"[red]Error:[/red] Could not remove existing file {target_utils_file}: {e}"
-                    )
-                    sys.exit(1)
+        safe_copy_file(utils_file, target_utils_file, writer)
 
-        writer.echo(f"Copying {utils_file} to {target_utils_file}")
-        try:
-            shutil.copy2(utils_file, target_utils_file)
-        except PermissionError:
-            writer.always_echo(
-                f"[red]Permission denied[/red] when copying to {target_utils_file}"
-            )
-            sys.exit(1)
+
+def build_compile_command(
+    main_test_file: str, classpath: list[str] | None = None
+) -> list[str]:
+    """
+    Build the javac command for compilation.
+
+    Args:
+        main_test_file: Name of the main test file (without extension)
+        classpath: Optional list of additional classpath entries
+
+    Returns:
+        Command as a list of strings
+    """
+    if classpath:
+        if "." not in classpath:
+            classpath.append(".")
+        cp_string = ":".join(classpath)
+        return ["javac", "-cp", cp_string, f"{main_test_file}.java"]
+    else:
+        return ["javac", f"{main_test_file}.java"]
+
+
+def build_run_command(
+    main_test_file: str, classpath: list[str] | None = None
+) -> list[str]:
+    """
+    Build the java command for execution.
+
+    Args:
+        main_test_file: Name of the main test file (without extension)
+        classpath: Optional list of additional classpath entries
+
+    Returns:
+        Command as a list of strings
+    """
+    if classpath:
+        if "." not in classpath:
+            classpath.append(".")
+        cp_string = ":".join(classpath)
+        return ["java", "-cp", cp_string, main_test_file]
+    else:
+        return ["java", main_test_file]
 
 
 def compile_test(
@@ -203,7 +210,7 @@ def compile_test(
     Compile the main test file using javac.
 
     Args:
-        main_test_file: Name of the main test file
+        main_test_file: Name of the main test file (without extension)
         target_dir: Directory where the file is located
         writer: Writer object for console output
         classpath: Optional list of additional classpath entries
@@ -216,17 +223,10 @@ def compile_test(
     os.chdir(target_dir)
 
     try:
-        if classpath:
-            if "." not in classpath:
-                classpath.append(".")
-            cp_string = ":".join(classpath)
-            command = ["javac", "-cp", cp_string, f"{main_test_file}.java"]
-        else:
-            command = ["javac", f"{main_test_file}.java"]
-
+        command = build_compile_command(main_test_file, classpath)
         writer.always_echo(f"Running: {' '.join(command)}\n")
-        result = subprocess.run(command, capture_output=True, text=True)
 
+        result = subprocess.run(command, capture_output=True, text=True)
         if result.returncode != 0:
             writer.always_echo("Compilation [red]failed[/red] with error:")
             writer.always_echo(result.stderr)
@@ -239,12 +239,60 @@ def compile_test(
         os.chdir(original_dir)
 
 
+def calculate_grade_from_output(output: str) -> tuple[float, float]:
+    """
+    Parse the test output to calculate the total grade.
+
+    Args:
+        output: The output string from the test execution
+
+    Returns:
+        Tuple containing total points and possible points
+    """
+    total_points = 0.0
+    possible_points = 0.0
+
+    grade_pattern = re.compile(
+        r"Grade for .+ \(out of possible (\d+\.\d+)\): (\d+\.\d+)"
+    )
+
+    for line in output.split("\n"):
+        match = grade_pattern.search(line)
+        if match:
+            possible = float(match.group(1))
+            achieved = float(match.group(2))
+            total_points += achieved
+            possible_points += possible
+
+    return total_points, possible_points
+
+
+def display_grade_summary(
+    writer: Writer, total_points: float, possible_points: float
+) -> None:
+    """
+    Display a summary of the test results.
+
+    Args:
+        writer: Writer object for console output
+        total_points: Total points earned
+        possible_points: Total points possible
+    """
+    if possible_points > 0:
+        percentage = (total_points / possible_points) * 100
+        writer.always_echo("\n" + "=" * 60)
+        writer.always_echo("Final Grade Summary:")
+        writer.always_echo(f"Total Points: {total_points:.1f} / {possible_points:.1f}")
+        writer.always_echo(f"Percentage: {percentage:.1f}%")
+        writer.always_echo("=" * 60)
+
+
 def run_test(
     main_test_file: str,
     target_dir: Path,
     writer: Writer,
     classpath: list[str] | None = None,
-) -> None:
+) -> tuple[bool, float, float]:
     """
     Run the compiled test using java.
 
@@ -254,6 +302,12 @@ def run_test(
         writer: Writer object for console output
         classpath: Optional list of additional classpath entries
 
+    Returns:
+        Tuple containing:
+          - Success status (boolean)
+          - Total points earned (float)
+          - Total possible points (float)
+
     Raises:
         SystemExit: If the test execution fails
     """
@@ -262,60 +316,114 @@ def run_test(
     os.chdir(target_dir)
 
     try:
-        if classpath:
-            if "." not in classpath:
-                classpath.append(".")
-            cp_string = ":".join(classpath)
-            command = ["java", "-cp", cp_string, main_test_file]
-        else:
-            command = ["java", main_test_file]
-
+        command = build_run_command(main_test_file, classpath)
         writer.always_echo(f"Running: {' '.join(command)}\n\n")
 
         result = subprocess.run(command, capture_output=True, text=True)
         output = result.stdout
 
         writer.always_echo(output)
+        writer.always_echo(result.stderr)
 
         if result.returncode != 0:
             writer.always_echo(
-                f"Test execution failed with exit code: {result.returncode}"
+                f"[yellow]Grader.py[/yellow]: Test execution [red]failed[/red] with exit code: {result.returncode}"
             )
-            # Always show error output even in quiet mode
-            if not writer.verbose:
-                writer.always_echo(output)
             sys.exit(result.returncode)
 
         # Parse the output to calculate the total grade
-        total_points = 0
-        possible_points = 0
+        total_points, possible_points = calculate_grade_from_output(output)
 
-        grade_pattern = re.compile(
-            r"Grade for .+ \(out of possible (\d+\.\d+)\): (\d+\.\d+)"
-        )
-
-        for line in output.split("\n"):
-            match = grade_pattern.search(line)
-            if match:
-                possible = float(match.group(1))
-                achieved = float(match.group(2))
-                total_points += achieved
-                possible_points += possible
-
-        # Display the results - always show grade summary regardless of verbosity
-        if possible_points > 0:
-            percentage = (total_points / possible_points) * 100
-            writer.always_echo("\n" + "=" * 60)
-            writer.always_echo("Final Grade Summary:")
-            writer.always_echo(
-                f"Total Points: {total_points:.1f} / {possible_points:.1f}"
-            )
-            writer.always_echo(f"Percentage: {percentage:.1f}%")
-            writer.always_echo("=" * 60)
+        # Display the results
+        display_grade_summary(writer, total_points, possible_points)
+        return True, total_points, possible_points
 
     finally:
         # Always change back to the original directory
         os.chdir(original_dir)
+
+
+def add_write_permission(path: Path, writer: Writer) -> bool:
+    """
+    Add write permission to a file or directory.
+
+    Args:
+        path: Path to add write permission to
+        writer: Writer object for console output
+
+    Returns:
+        True if permission was successfully added, False otherwise
+    """
+    writer.echo(f"Adding write permissions to: {path}")
+    try:
+        current_mode = path.stat().st_mode
+        new_mode = current_mode | 0o200  # Add user write permission
+        os.chmod(path, new_mode)
+        writer.echo(f"Successfully added write permissions to {path}")
+        return True
+    except Exception as e:
+        writer.always_echo(f"[red]Warning:[/red] Failed to add write permissions: {e}")
+        return False
+
+
+def safe_delete_file(file_path: Path, writer: Writer) -> bool:
+    """
+    Safely delete a file, attempting to add write permissions if needed.
+
+    Args:
+        file_path: Path to the file to delete
+        writer: Writer object for console output
+
+    Returns:
+        True if deletion was successful, False otherwise
+
+    Raises:
+        FileOperationError: If file deletion fails after attempts to fix permissions
+    """
+    if not file_path.exists():
+        return True
+
+    writer.echo(f"Removing existing file: {file_path}")
+    try:
+        file_path.unlink()
+        return True
+    except PermissionError:
+        writer.echo(
+            f"Insufficient permissions to remove {file_path}, trying to add write permissions"
+        )
+        if add_write_permission(file_path, writer):
+            try:
+                file_path.unlink()
+                return True
+            except Exception:
+                pass
+
+    # If we get here, all attempts failed
+    raise FileOperationError(f"Could not remove existing file {file_path}")
+
+
+def ensure_directory_writable(directory: Path, writer: Writer) -> None:
+    """
+    Ensure a directory exists and is writable, adding permissions if necessary.
+
+    Args:
+        directory: Directory path to check
+        writer: Writer object for console output
+
+    Raises:
+        FileOperationError: If directory does not exist or cannot be made writable
+    """
+    if not directory.exists() or not directory.is_dir():
+        raise FileOperationError(
+            f"Directory {directory} does not exist or is not a directory."
+        )
+
+    # Check write permissions on directory
+    if not os.access(directory, os.W_OK):
+        if not add_write_permission(directory, writer):
+            writer.always_echo(
+                "Attempting to continue with operations despite permission issues..."
+            )
 
 
 @app.command()
@@ -358,52 +466,67 @@ def main(
     # Create our writer utility for console output
     writer = Writer(verbose)
 
-    # Convert paths to Path objects
-    test_dir_path = Path(test_dir).resolve()
-    code_dir_path = Path(code_dir).resolve()
+    try:
+        # Convert paths to Path objects
+        test_dir_path = Path(test_dir).resolve()
+        code_dir_path = Path(code_dir).resolve()
 
-    writer.echo(f"Test directory: {test_dir_path}")
-    writer.echo(f"Code directory: {code_dir_path}")
-    writer.echo(f"Test file prefix: {prefix}")
+        writer.echo(f"Test directory: {test_dir_path}")
+        writer.echo(f"Code directory: {code_dir_path}")
+        writer.echo(f"Test file prefix: {prefix}")
 
-    # Process classpath entries if provided
-    resolved_classpath: list[str] | None = None
-    if classpath:
-        resolved_classpath = []
-        for cp_entry in classpath:
-            cp_path = Path(cp_entry).resolve()
-            if not cp_path.exists():
-                writer.always_echo(
-                    f"Error: Classpath entry '{cp_entry}' does not exist."
-                )
-                sys.exit(1)
-            resolved_classpath.append(str(cp_path))
+        # Process classpath entries if provided
+        resolved_classpath: list[str] | None = None
+        if classpath:
+            resolved_classpath = []
+            for cp_entry in classpath:
+                cp_path = Path(cp_entry).resolve()
+                if not cp_path.exists():
+                    raise FileOperationError(
+                        f"Classpath entry '{cp_entry}' does not exist."
+                    )
+                resolved_classpath.append(str(cp_path))
 
-        writer.echo(f"Classpath entries: {resolved_classpath}")
+            writer.echo(f"Classpath entries: {resolved_classpath}")
 
-    # Find all test files
-    test_files = find_test_files(test_dir_path, prefix, writer)
-    writer.echo(f"Found {len(test_files)} test files")
+        # Find all test files
+        test_files = find_test_files(test_dir_path, prefix, writer)
+        writer.echo(f"Found {len(test_files)} test files")
 
-    # Copy test files to target directory
-    copy_test_files(test_files, code_dir_path, writer)
+        # Copy test files to target directory
+        copy_test_files(test_files, code_dir_path, writer)
 
-    # Compile the main test file
-    compilation_successful = compile_test(
-        prefix,
-        code_dir_path,
-        writer,
-        resolved_classpath,
-    )
+        # Compile the main test file
+        compilation_successful = compile_test(
+            prefix,
+            code_dir_path,
+            writer,
+            resolved_classpath,
+        )
 
-    if not compilation_successful:
-        writer.always_echo("Exiting due to compilation failure")
-        sys.exit(1)
+        if not compilation_successful:
+            writer.always_echo("Exiting due to compilation failure")
+            sys.exit(ERROR_EXIT_CODE)
 
-    # Run the test
-    run_test(prefix, code_dir_path, writer, resolved_classpath)
+        # Run the test
+        success, _, _ = run_test(prefix, code_dir_path, writer, resolved_classpath)
 
-    writer.echo("Test execution completed successfully")
+        if success:
+            writer.echo("Test execution completed successfully")
+            sys.exit(SUCCESS_EXIT_CODE)
+        else:
+            sys.exit(ERROR_EXIT_CODE)
+
+    except FileOperationError as e:
+        writer.always_echo(f"[red]Error:[/red] {e}")
+        sys.exit(ERROR_EXIT_CODE)
+    except Exception as e:
+        writer.always_echo(f"[red]Unexpected error:[/red] {e}")
+        if verbose:
+            import traceback
+
+            writer.always_echo(traceback.format_exc())
+        sys.exit(ERROR_EXIT_CODE)
 
 
 if __name__ == "__main__":
