@@ -3,7 +3,7 @@
 import re
 import os
 import shutil
-import subprocess
+import subprocess  # nosec: B404
 import sys
 from pathlib import Path
 from typing import Any
@@ -226,7 +226,7 @@ def compile_test(
         command = build_compile_command(main_test_file, classpath)
         writer.always_echo(f"Running: {' '.join(command)}\n")
 
-        result = subprocess.run(command, capture_output=True, text=True)
+        result = subprocess.run(command, capture_output=True, text=True)  # nosec: B603
         if result.returncode != 0:
             writer.always_echo("Compilation [red]failed[/red] with error:")
             writer.always_echo(result.stderr)
@@ -319,7 +319,7 @@ def run_test(
         command = build_run_command(main_test_file, classpath)
         writer.always_echo(f"Running: {' '.join(command)}\n\n")
 
-        result = subprocess.run(command, capture_output=True, text=True)
+        result = subprocess.run(command, capture_output=True, text=True)  # nosec: B603
         output = result.stdout
 
         writer.always_echo(output)
@@ -396,7 +396,8 @@ def safe_delete_file(file_path: Path, writer: Writer) -> bool:
                 file_path.unlink()
                 return True
             except Exception:
-                pass
+                # Ignore the exception to trigger our own
+                pass  # nosec: B110
 
     # If we get here, all attempts failed
     raise FileOperationError(f"Could not remove existing file {file_path}")
