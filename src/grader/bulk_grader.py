@@ -1,0 +1,765 @@
+#!/usr/bin/env python3
+
+import os
+import re
+import shutil
+import tempfile
+import zipfile
+import math
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import pandas as pd
+import typer
+from fuzzywuzzy import fuzz, process
+from rich import print as rich_print
+from unidecode import unidecode
+
+from ._grader import (
+    Writer,
+    compile_test,
+    copy_test_files,
+    find_test_files,
+    run_test,
+    FileOperationError,
+)
+
+app = typer.Typer(help="Bulk grader for processing multiple student submissions")
+
+
+@dataclass
+class StudentRecord:
+    """Represents a student record from the CSV file."""
+    org_defined_id: str
+    username: str
+    last_name: str
+    first_name: str
+    email: str
+    original_grade: Optional[str] = None
+
+
+@dataclass
+class Submission:
+    """Represents a student submission with metadata."""
+    student_name: str
+    timestamp: datetime
+    folder_path: Path
+
+
+@dataclass
+class GradingResult:
+    """Represents the result of grading a student's submission."""
+    student_record: StudentRecord
+    grade: Optional[float]
+    error_message: Optional[str] = None
+    success: bool = True
+
+
+def normalize_csv_header(csv_path: Path) -> Path:
+    """
+    Normalize the CSV header to the expected format.
+    
+    Args:
+        csv_path: Path to the original CSV file
+        
+    Returns:
+        Path to the normalized CSV file (same file, modified in place)
+    """
+    # Read the file and normalize the header
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    
+    if not lines:
+        raise ValueError("CSV file is empty")
+    
+    # Replace the header with our normalized version
+    lines[0] = "OrgDefinedId,Username,Last Name,First Name,Email,Lab Grade,End-of-Line Indicator\n"
+    
+    # Write back to the same file
+    with open(csv_path, 'w', encoding='utf-8') as f:
+        f.writelines(lines)
+    
+    return csv_path
+
+
+def load_grading_list(csv_path: Path) -> Tuple[pd.DataFrame, str]:
+    """
+    Load the grading list CSV file and return DataFrame with student records.
+    
+    Args:
+        csv_path: Path to the CSV file
+        
+    Returns:
+        Tuple of (DataFrame with student records, original header)
+    """
+    # First, read the original header
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        original_header = f.readline().strip()
+    
+    # Normalize the header
+    normalize_csv_header(csv_path)
+    
+    # Load the CSV with the normalized header
+    df = pd.read_csv(csv_path)
+    
+    return df, original_header
+
+
+def parse_submission_folder_name(folder_name: str) -> Tuple[str, datetime]:
+    """
+    Parse submission folder name to extract student name and timestamp.
+    
+    Expected format: "<ignored>-<ignored> - <names> - <month> <day>, <year> <time> <AM/PM>"
+    Example: "152711-351765 - John Doe - May 18, 2025 1224 PM"
+    
+    Args:
+        folder_name: The folder name to parse
+        
+    Returns:
+        Tuple of (student_name, timestamp)
+        
+    Raises:
+        ValueError: If folder name doesn't match expected format
+    """
+    # Pattern to match the folder name format
+    pattern = r'^\d+-\d+\s*-\s*(.+?)\s*-\s*(\w+)\s+(\d+),\s*(\d+)\s+(\d+)\s*(AM|PM)$'
+    
+    match = re.match(pattern, folder_name)
+    if not match:
+        raise ValueError(f"Folder name '{folder_name}' doesn't match expected format")
+    
+    student_name = match.group(1).strip()
+    month_str = match.group(2)
+    day = int(match.group(3))
+    year = int(match.group(4))
+    time_str = match.group(5)
+    am_pm = match.group(6)
+    
+    # Parse time
+    if len(time_str) == 3:
+        # Format like "130" -> "1:30"
+        hour = int(time_str[0])
+        minute = int(time_str[1:3])
+    elif len(time_str) == 4:
+        # Format like "1224" -> "12:24"
+        hour = int(time_str[0:2])
+        minute = int(time_str[2:4])
+    else:
+        raise ValueError(f"Invalid time format: {time_str}")
+    
+    # Convert to 24-hour format
+    if am_pm == 'PM' and hour != 12:
+        hour += 12
+    elif am_pm == 'AM' and hour == 12:
+        hour = 0
+    
+    # Parse month
+    month_mapping = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        'September': 9, 'October': 10, 'November': 11, 'December': 12,
+        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4,
+        'May': 5, 'Jun': 6, 'Jul': 7, 'Aug': 8,
+        'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+    }
+    
+    month = month_mapping.get(month_str)
+    if month is None:
+        raise ValueError(f"Unknown month: {month_str}")
+    
+    timestamp = datetime(year, month, day, hour, minute)
+    
+    return student_name, timestamp
+
+
+def normalize_name(name: str) -> str:
+    """
+    Normalize a name for comparison by removing accents and converting to lowercase.
+    
+    Args:
+        name: The name to normalize
+        
+    Returns:
+        Normalized name
+    """
+    # Convert unicode characters to ASCII equivalents
+    normalized = unidecode(name)
+    # Convert to lowercase and remove extra whitespace
+    normalized = ' '.join(normalized.lower().split())
+    return normalized
+
+
+def find_best_name_match(target_name: str, candidate_names: List[str], threshold: int = 80) -> Optional[str]:
+    """
+    Find the best matching name using fuzzy string matching.
+    
+    Args:
+        target_name: The name to match against
+        candidate_names: List of candidate names
+        threshold: Minimum match score (0-100)
+        
+    Returns:
+        Best matching name or None if no good match found
+    """
+    normalized_target = normalize_name(target_name)
+    normalized_candidates = [normalize_name(name) for name in candidate_names]
+    
+    # Try exact match first
+    if normalized_target in normalized_candidates:
+        idx = normalized_candidates.index(normalized_target)
+        return candidate_names[idx]
+    
+    # Try fuzzy matching
+    result = process.extractOne(normalized_target, normalized_candidates, scorer=fuzz.ratio)
+    if result and result[1] >= threshold:
+        idx = normalized_candidates.index(result[0])
+        return candidate_names[idx]
+    
+    return None
+
+
+def extract_submissions(zip_path: Path, temp_dir: Path) -> Path:
+    """
+    Extract the main submissions ZIP file.
+    
+    Args:
+        zip_path: Path to the submissions ZIP file
+        temp_dir: Temporary directory to extract to
+        
+    Returns:
+        Path to the extracted submissions directory
+    """
+    submissions_dir = temp_dir / "submissions"
+    submissions_dir.mkdir(exist_ok=True)
+    
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(submissions_dir)
+    
+    return submissions_dir
+
+
+def find_latest_submissions(
+    submissions_dir: Path, 
+    grading_df: pd.DataFrame, 
+    writer: Writer
+) -> Dict[str, Tuple[StudentRecord, Path]]:
+    """
+    Find the latest submission for each student.
+    
+    Args:
+        submissions_dir: Directory containing all submissions
+        grading_df: DataFrame with student records
+        writer: Writer for output
+        
+    Returns:
+        Dictionary mapping student names to (StudentRecord, submission_path)
+    """
+    submissions: Dict[str, List[Submission]] = {}
+    student_records = {}
+    
+    # Create student records lookup
+    for _, row in grading_df.iterrows():
+        record = StudentRecord(
+            org_defined_id=str(row['OrgDefinedId']),
+            username=str(row['Username']),
+            last_name=str(row['Last Name']),
+            first_name=str(row['First Name']),
+            email=str(row['Email']),
+            original_grade=str(row.get('Lab Grade', '')) if pd.notna(row.get('Lab Grade', '')) else None
+        )
+        full_name = f"{record.first_name} {record.last_name}"
+        student_records[normalize_name(full_name)] = record
+    
+    # Parse all submission folders
+    for folder in submissions_dir.iterdir():
+        if folder.is_dir():
+            try:
+                student_name, timestamp = parse_submission_folder_name(folder.name)
+                submission = Submission(student_name, timestamp, folder)
+                
+                # Normalize student name for matching
+                normalized_name = normalize_name(student_name)
+                if normalized_name not in submissions:
+                    submissions[normalized_name] = []
+                submissions[normalized_name].append(submission)
+                
+            except ValueError as e:
+                writer.always_echo(f"[yellow]Warning:[/yellow] Skipping folder '{folder.name}': {e}")
+                continue
+    
+    # Find latest submission for each student and match with records
+    latest_submissions = {}
+    student_record_names = list(student_records.keys())
+    
+    for normalized_submission_name, submission_list in submissions.items():
+        # Find the latest submission
+        latest = max(submission_list, key=lambda s: s.timestamp)
+        
+        # Try to match with a student record
+        best_match = find_best_name_match(
+            latest.student_name, 
+            [record.first_name + " " + record.last_name for record in student_records.values()]
+        )
+        
+        if best_match:
+            normalized_match = normalize_name(best_match)
+            if normalized_match in student_records:
+                student_record = student_records[normalized_match]
+                latest_submissions[normalized_submission_name] = (student_record, latest.folder_path)
+                writer.echo(f"Matched '{latest.student_name}' to '{best_match}' (latest: {latest.timestamp})")
+            else:
+                writer.always_echo(f"[yellow]Warning:[/yellow] Could not find student record for '{latest.student_name}'")
+        else:
+            writer.always_echo(f"[yellow]Warning:[/yellow] Could not match submission '{latest.student_name}' to any student record")
+    
+    return latest_submissions
+
+
+def prepare_grading_directory(submission_path: Path, temp_dir: Path, writer: Writer) -> Path:
+    """
+    Prepare the grading directory from a submission folder.
+    
+    Args:
+        submission_path: Path to the student's submission folder
+        temp_dir: Temporary directory for processing
+        writer: Writer for output
+        
+    Returns:
+        Path to the prepared grading directory
+    """
+    grading_dir = temp_dir / "grading" / submission_path.name
+    grading_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Find all files in the submission
+    zip_files = list(submission_path.glob("*.zip"))
+    java_files = list(submission_path.glob("*.java"))
+    
+    if zip_files:
+        # Extract all ZIP files to the grading directory
+        writer.echo(f"Found {len(zip_files)} ZIP files in submission")
+        for zip_file in zip_files:
+            writer.echo(f"Extracting {zip_file.name}")
+            with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+                # Extract all files, flattening directory structure
+                for member in zip_ref.infolist():
+                    if not member.is_dir() and member.filename.endswith('.java'):
+                        # Get just the filename, ignore directory structure
+                        filename = Path(member.filename).name
+                        target_path = grading_dir / filename
+                        
+                        # Extract to target path
+                        with zip_ref.open(member) as source, open(target_path, 'wb') as target:
+                            target.write(source.read())
+                        writer.echo(f"  Extracted {filename}")
+    
+    elif java_files:
+        # Copy Java files directly
+        writer.echo(f"Found {len(java_files)} Java files in submission")
+        for java_file in java_files:
+            target_path = grading_dir / java_file.name
+            shutil.copy2(java_file, target_path)
+            writer.echo(f"  Copied {java_file.name}")
+    
+    else:
+        raise FileOperationError(f"No ZIP or Java files found in submission: {submission_path}")
+    
+    return grading_dir
+
+
+def run_grader_for_student(
+    student_record: StudentRecord,
+    grading_dir: Path,
+    test_dir: Path,
+    prefix: str,
+    classpath: Optional[List[str]],
+    writer: Writer
+) -> GradingResult:
+    """
+    Run the grader for a single student.
+    
+    Args:
+        student_record: Student record information
+        grading_dir: Directory containing student's code
+        test_dir: Directory containing test files
+        prefix: Test file prefix
+        classpath: Optional classpath entries
+        writer: Writer for output
+        
+    Returns:
+        GradingResult with the outcome
+    """
+    try:
+        writer.always_echo(f"\n{'='*60}")
+        writer.always_echo(f"Grading: {student_record.first_name} {student_record.last_name} ({student_record.username})")
+        writer.always_echo(f"{'='*60}")
+        
+        # Find test files
+        test_files = find_test_files(test_dir, prefix, writer)
+        
+        # Copy test files to grading directory
+        copy_test_files(test_files, grading_dir, writer)
+        
+        # Compile the test
+        compilation_successful = compile_test(prefix, grading_dir, writer, classpath)
+        if not compilation_successful:
+            return GradingResult(
+                student_record=student_record,
+                grade=0.0,
+                error_message="Compilation failed",
+                success=False
+            )
+        
+        # Run the test
+        success, total_points, possible_points = run_test(prefix, grading_dir, writer, classpath)
+        
+        if possible_points > 0:
+            grade = total_points / possible_points
+        else:
+            grade = 0.0
+        
+        return GradingResult(
+            student_record=student_record,
+            grade=grade,
+            success=success
+        )
+        
+    except Exception as e:
+        return GradingResult(
+            student_record=student_record,
+            grade=0.0,
+            error_message=str(e),
+            success=False
+        )
+
+
+def save_results_to_csv(
+    results: List[GradingResult],
+    original_df: pd.DataFrame,
+    original_header: str,
+    output_path: Path,
+    failure_is_null: bool
+) -> None:
+    """
+    Save grading results back to a CSV file.
+    
+    Args:
+        results: List of grading results
+        original_df: Original DataFrame
+        original_header: Original CSV header
+        output_path: Path to save the output CSV
+        failure_is_null: Whether to use null for failures instead of 0
+    """
+    # Create a lookup for results by username
+    results_lookup = {result.student_record.username: result for result in results}
+    
+    # Update the DataFrame with results
+    output_df = original_df.copy()
+    
+    for idx, row in output_df.iterrows():
+        username = str(row['Username'])
+        if username in results_lookup:
+            result = results_lookup[username]
+            if result.success:
+                output_df.at[idx, 'Lab Grade'] = f"{result.grade:.3f}"
+            else:
+                if failure_is_null:
+                    output_df.at[idx, 'Lab Grade'] = ""
+                else:
+                    output_df.at[idx, 'Lab Grade'] = "0.000"
+    output_df.drop(['First Name', 'Last Name', 'Email'], axis=1, inplace=True, errors='ignore')
+    
+    # Save to CSV with original header
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(original_header + '\n')
+        # Write data rows (skip header row from DataFrame)
+        for _, row in output_df.iterrows():
+            f.write(','.join(str(row[col]) for col in output_df.columns) + '\n')
+
+
+@app.command()
+def main(
+    submissions: str = typer.Option(
+        ..., "--submissions", "-s", help="Path to ZIP file containing all student submissions"
+    ),
+    grading_list: str = typer.Option(
+        ..., "--grading-list", "-g", help="Path to CSV file with student grading list"
+    ),
+    test_dir: str = typer.Option(
+        ..., "--test-dir", "-t", help="Directory containing test files"
+    ),
+    prefix: str = typer.Option(
+        ..., "--prefix", "-p", help="Prefix of test files to search for (e.g., 'TestL3')"
+    ),
+    output: str = typer.Option(
+        "graded_results.csv", "--output", "-o", help="Output CSV file path"
+    ),
+    classpath: Optional[List[str]] = typer.Option(
+        None, "--classpath", "-cp", help="Additional classpath entries (can be specified multiple times)"
+    ),
+    failure_is_null: bool = typer.Option(
+        False, "--failure-is-null", "-F", help="Use null/empty for failures instead of 0"
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose/--quiet", "-v/-q", help="Control verbosity of output"
+    ),
+) -> None:
+    """
+    Bulk grader for processing multiple student submissions.
+    
+    This tool processes a ZIP file containing student submissions, grades each submission
+    using the specified test files, and outputs results to a CSV file.
+    
+    The grading list CSV should be exported from the gradebook using:
+    - Sort by: Student Number, Username, First Name, Last Name
+    - Include: Last Name, First Name, Email as User Details
+    - Export with both username and student number as keys
+    """
+    writer = Writer(verbose)
+    
+    try:
+        # Convert paths to Path objects
+        submissions_path = Path(submissions).resolve()
+        grading_list_path = Path(grading_list).resolve()
+        test_dir_path = Path(test_dir).resolve()
+        output_path = Path(output).resolve()
+        
+        writer.always_echo("🎓 Starting bulk grading process...")
+        writer.always_echo(f"Submissions: {submissions_path}")
+        writer.always_echo(f"Grading list: {grading_list_path}")
+        writer.always_echo(f"Test directory: {test_dir_path}")
+        writer.always_echo(f"Output: {output_path}")
+        
+        # Validate input files
+        if not submissions_path.exists():
+            raise FileOperationError(f"Submissions file not found: {submissions_path}")
+        if not grading_list_path.exists():
+            raise FileOperationError(f"Grading list file not found: {grading_list_path}")
+        if not test_dir_path.exists():
+            raise FileOperationError(f"Test directory not found: {test_dir_path}")
+        
+        # Create temporary directory for processing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            writer.echo(f"Using temporary directory: {temp_path}")
+            
+            # Load grading list
+            writer.always_echo("\n📋 Loading grading list...")
+            grading_df, original_header = load_grading_list(grading_list_path)
+            writer.always_echo(f"Loaded {len(grading_df)} students from grading list")
+            
+            # Extract submissions
+            writer.always_echo("\n📦 Extracting submissions...")
+            submissions_dir = extract_submissions(submissions_path, temp_path)
+            
+            # Find latest submissions for each student
+            writer.always_echo("\n🔍 Finding latest submissions...")
+            latest_submissions = find_latest_submissions(submissions_dir, grading_df, writer)
+            writer.always_echo(f"Found submissions for {len(latest_submissions)} students")
+            
+            # Process classpath
+            resolved_classpath = None
+            if classpath:
+                resolved_classpath = []
+                for cp_entry in classpath:
+                    cp_path = Path(cp_entry).resolve()
+                    if not cp_path.exists():
+                        raise FileOperationError(f"Classpath entry '{cp_entry}' does not exist")
+                    resolved_classpath.append(str(cp_path))
+                writer.echo(f"Classpath entries: {resolved_classpath}")
+            
+            # Grade each submission
+            writer.always_echo("\n⚡ Starting grading process...")
+            results = []
+            
+            for submission_name, (student_record, submission_path) in latest_submissions.items():
+                try:
+                    # Prepare grading directory
+                    grading_dir = prepare_grading_directory(submission_path, temp_path, writer)
+                    
+                    # Run grader
+                    result = run_grader_for_student(
+                        student_record, grading_dir, test_dir_path, prefix, resolved_classpath, writer
+                    )
+                    results.append(result)
+                    
+                    # Show result summary
+                    if result.success:
+                        percentage = result.grade * 100
+                        writer.always_echo(f"✅ Grade: {percentage:.1f}%")
+                    else:
+                        writer.always_echo(f"❌ Failed: {result.error_message}")
+                    
+                except Exception as e:
+                    writer.always_echo(f"❌ Error processing {student_record.username}: {e}")
+                    results.append(GradingResult(
+                        student_record=student_record,
+                        grade=0.0,
+                        error_message=str(e),
+                        success=False
+                    ))
+            
+            # Save results
+            writer.always_echo(f"\n💾 Saving results to {output_path}...")
+            save_results_to_csv(results, grading_df, original_header, output_path, failure_is_null)
+            
+            # Generate post-grading report
+            writer.always_echo(f"\n📊 Generating post-grading report...")
+            generate_post_grading_report(results, grading_df, latest_submissions, writer)
+            
+            # Summary
+            successful = sum(1 for r in results if r.success)
+            failed = len(results) - successful
+            avg_grade = sum(r.grade for r in results if r.success) / max(successful, 1)
+            
+            writer.always_echo("\n" + "="*60)
+            writer.always_echo("📊 GRADING SUMMARY")
+            writer.always_echo("="*60)
+            writer.always_echo(f"Total submissions processed: {len(results)}")
+            writer.always_echo(f"Successful: {successful}")
+            writer.always_echo(f"Failed: {failed}")
+            if successful > 0:
+                writer.always_echo(f"Average grade: {avg_grade*100:.1f}%")
+            writer.always_echo(f"Results saved to: {output_path}")
+            writer.always_echo("="*60)
+            
+    except FileOperationError as e:
+        writer.always_echo(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    except Exception as e:
+        writer.always_echo(f"[red]Unexpected error:[/red] {e}")
+        if verbose:
+            import traceback
+            writer.always_echo(traceback.format_exc())
+        raise typer.Exit(1)
+
+
+def generate_post_grading_report(
+    results: List[GradingResult],
+    grading_df: pd.DataFrame,
+    latest_submissions: Dict[str, Tuple[StudentRecord, Path]],
+    writer: Writer
+) -> None:
+    """
+    Generate a comprehensive post-grading report focusing on problematic cases.
+    
+    Args:
+        results: List of grading results
+        grading_df: Original DataFrame with student records
+        latest_submissions: Dictionary of found submissions
+        writer: Writer for output
+    """
+    writer.always_echo("\n" + "="*80)
+    writer.always_echo("📋 POST-GRADING REPORT")
+    writer.always_echo("="*80)
+    
+    # Create lookups for analysis
+    graded_students = {result.student_record.username: result for result in results}
+    submitted_students = set()
+    for _, (student_record, _) in latest_submissions.items():
+        submitted_students.add(student_record.username)
+    
+    all_csv_students = set()
+    for _, row in grading_df.iterrows():
+        all_csv_students.add(str(row['Username']))
+    
+    # 1. Students who received a grade of 0
+    zero_grade_students = []
+    for result in results:
+        if result.grade == 0.0:
+            zero_grade_students.append(result)
+    
+    writer.always_echo(f"\n🚨 STUDENTS WHO RECEIVED A GRADE OF 0 ({len(zero_grade_students)} students):")
+    writer.always_echo("-" * 60)
+    if zero_grade_students:
+        for result in zero_grade_students:
+            student = result.student_record
+            reason = result.error_message if result.error_message else "Test failures"
+            writer.always_echo(f"  • {student.first_name} {student.last_name} ({student.username})")
+            writer.always_echo(f"    Email: {student.email}")
+            writer.always_echo(f"    Reason: {reason}")
+            writer.always_echo("")
+    else:
+        writer.always_echo("  ✅ No students received a grade of 0")
+    
+    # 2. Students who received NaN grades (failures marked as null)
+    nan_grade_students = []
+    for result in results:
+        # Check for actual NaN values or explicit failures that would result in empty grades
+        has_nan_grade = (result.grade is None or 
+                        (isinstance(result.grade, float) and math.isnan(result.grade)) or
+                        not result.success)
+        if has_nan_grade:
+            nan_grade_students.append(result)
+    
+    writer.always_echo(f"\n📊 STUDENTS WITH FAILED/NULL GRADES ({len(nan_grade_students)} students):")
+    writer.always_echo("-" * 60)
+    if nan_grade_students:
+        for result in nan_grade_students:
+            student = result.student_record
+            reason = result.error_message if result.error_message else "Grading failed"
+            writer.always_echo(f"  • {student.first_name} {student.last_name} ({student.username})")
+            writer.always_echo(f"    Email: {student.email}")
+            writer.always_echo(f"    Reason: {reason}")
+            writer.always_echo("")
+    else:
+        writer.always_echo("  ✅ No students have failed/null grades")
+    
+    # 3. Students in CSV but without submissions
+    csv_no_submission = all_csv_students - submitted_students
+    
+    writer.always_echo(f"\n📝 STUDENTS IN CSV BUT WITHOUT SUBMISSIONS ({len(csv_no_submission)} students):")
+    writer.always_echo("-" * 60)
+    if csv_no_submission:
+        for username in sorted(csv_no_submission):
+            # Find the student record
+            student_row = grading_df[grading_df['Username'] == username]
+            if not student_row.empty:
+                row = student_row.iloc[0]
+                first_name = str(row['First Name'])
+                last_name = str(row['Last Name'])
+                email = str(row['Email'])
+                writer.always_echo(f"  • {first_name} {last_name} ({username})")
+                writer.always_echo(f"    Email: {email}")
+                writer.always_echo("")
+    else:
+        writer.always_echo("  ✅ All students in CSV have submissions")
+    
+    # 4. Students with submissions but not in CSV
+    submission_no_csv = submitted_students - all_csv_students
+    
+    writer.always_echo(f"\n📤 STUDENTS WITH SUBMISSIONS BUT NOT IN CSV ({len(submission_no_csv)} students):")
+    writer.always_echo("-" * 60)
+    if submission_no_csv:
+        for username in sorted(submission_no_csv):
+            # Find the submission info
+            for _, (student_record, submission_path) in latest_submissions.items():
+                if student_record.username == username:
+                    writer.always_echo(f"  • {student_record.first_name} {student_record.last_name} ({username})")
+                    writer.always_echo(f"    Email: {student_record.email}")
+                    writer.always_echo(f"    Submission folder: {submission_path.name}")
+                    writer.always_echo("")
+                    break
+    else:
+        writer.always_echo("  ✅ All submissions correspond to students in CSV")
+    
+    # Summary statistics
+    writer.always_echo(f"\n📈 SUMMARY STATISTICS:")
+    writer.always_echo("-" * 60)
+    writer.always_echo(f"  Total students in CSV: {len(all_csv_students)}")
+    writer.always_echo(f"  Total submissions found: {len(submitted_students)}")
+    writer.always_echo(f"  Total students graded: {len(results)}")
+    writer.always_echo(f"  Students with grade 0: {len(zero_grade_students)}")
+    writer.always_echo(f"  Students with failed grades: {len(nan_grade_students)}")
+    writer.always_echo(f"  Students missing submissions: {len(csv_no_submission)}")
+    writer.always_echo(f"  Extra submissions (not in CSV): {len(submission_no_csv)}")
+    
+    # Calculate success rate
+    successful_grades = len([r for r in results if r.success and r.grade > 0])
+    total_expected = len(all_csv_students)
+    if total_expected > 0:
+        success_rate = (successful_grades / total_expected) * 100
+        writer.always_echo(f"  Success rate: {success_rate:.1f}% ({successful_grades}/{total_expected})")
+    
+    writer.always_echo("="*80)
