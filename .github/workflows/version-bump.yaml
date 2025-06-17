@@ -1,0 +1,90 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      version-type:
+        description: 'Type of version bump'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      custom-version:
+        description: 'Custom version (optional, overrides version-type)'
+        required: false
+        type: string
+
+jobs:
+  bump-version:
+    name: Bump Version and Create Tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Configure git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Get current version
+        id: current-version
+        run: |
+          CURRENT_VERSION=$(poetry version --short)
+          echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+      - name: Bump version
+        id: bump-version
+        run: |
+          if [ -n "${{ github.event.inputs.custom-version }}" ]; then
+            # Use custom version
+            NEW_VERSION="${{ github.event.inputs.custom-version }}"
+            poetry version "$NEW_VERSION"
+          else
+            # Use version type bump
+            poetry version ${{ github.event.inputs.version-type }}
+            NEW_VERSION=$(poetry version --short)
+          fi
+          
+          echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Commit version change
+        run: |
+          git add pyproject.toml
+          git commit -m "Bump version to ${{ steps.bump-version.outputs.new-version }}"
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ steps.bump-version.outputs.new-version }}"
+          git push origin main
+          git push origin "v${{ steps.bump-version.outputs.new-version }}"
+
+      - name: Create summary
+        run: |
+          echo "## Version Bump Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Previous version:** ${{ steps.current-version.outputs.current-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New version:** ${{ steps.bump-version.outputs.new-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag created:** v${{ steps.bump-version.outputs.new-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release will be triggered automatically**" >> $GITHUB_STEP_SUMMARY

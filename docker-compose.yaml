@@ -1,0 +1,8 @@
+services:
+  grader:
+    image: ghcr.io/cryptaliagy/grader:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${DOCKER_TARGET:-dev}
+    
