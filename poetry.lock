@@ -929,17 +929,13 @@ description = "Fuzzy string matching in python"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "thefuzz-0.22.1-py3-none-any.whl", hash = "sha256:59729b33556850b90e1093c4cf9e618af6f2e4c985df193fdf3c5b5cf02ca481"},
+    {file = "thefuzz-0.22.1.tar.gz", hash = "sha256:7138039a7ecf540da323792d8592ef9902b1d79eb78c147d4f20664de79f3680"},
+]
 
 [package.dependencies]
 rapidfuzz = ">=3.0.0,<4.0.0"
-
-[package.source]
-type = "git"
-url = "ssh://git@github.com/seatgeek/thefuzz.git"
-reference = "0.22.1"
-resolved_reference = "a1a8cdebd84d5bc3abf25ebcb398f26bbfdf30a8"
 
 [[package]]
 name = "tomli"
@@ -1053,4 +1049,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "8d11547f7eef91ec32e7e290f742cd740986d5c0b3a8526a97bc5fccf1b6b54f"
+content-hash = "0eb81ad39d1f3a81f2c5b452b78d3634e6c4d7fbc224497224e89b1beb4ea24c"

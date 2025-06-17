@@ -140,7 +140,7 @@ jobs:
         run: poetry install --no-interaction --no-root
 
       - name: Run mypy type checking
-        run: poetry run mypy
+        run: poetry run mypy --follow-untyped-imports
 
   tests:
     name: Tests
