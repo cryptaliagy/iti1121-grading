@@ -241,7 +241,8 @@ def find_best_name_match(
         return candidate_names[idx]
 
     # Try fuzzy matching
-    result = process.extractOne(
+    ## Mypy can't figure out if process has extractOne method, so we use type: ignore
+    result = process.extractOne(  # type: ignore
         normalized_target, normalized_candidates, scorer=fuzz.ratio
     )
     if result and result[1] >= threshold:
@@ -534,7 +535,7 @@ def save_results_to_csv(
     output_df.to_csv(output_path, index=False)
 
 
-@app.command()
+@app.command(name="bulk")
 def main(
     submissions: str = typer.Option(
         ...,
@@ -677,8 +678,8 @@ def main(
                     results.append(result)
 
                     # Show result summary
-                    if result.success:
-                        percentage = result.grade * 100
+                    if result.success and result.grade:
+                        percentage = result.grade * 100 if result.grade is not None else 0.0
                         writer.always_echo(f"✅ Grade: {percentage:.1f}%")
                     else:
                         writer.always_echo(f"❌ Failed: {result.error_message}")
@@ -711,7 +712,7 @@ def main(
             # Summary
             successful = sum(1 for r in results if r.success)
             failed = len(results) - successful
-            avg_grade = sum(r.grade for r in results if r.success) / max(successful, 1)
+            avg_grade = sum(r.grade if r.grade is not None else 0 for r in results if r.success) / max(successful, 1)
 
             writer.always_echo("\n" + "=" * 60)
             writer.always_echo("📊 GRADING SUMMARY")
@@ -872,7 +873,7 @@ def generate_post_grading_report(
     writer.always_echo(f"  Extra submissions (not in CSV): {len(submission_no_csv)}")
 
     # Calculate success rate
-    successful_grades = len([r for r in results if r.success and r.grade > 0])
+    successful_grades = len([r for r in results if r.success and r.grade is not None and r.grade > 0])
     total_expected = len(all_csv_students)
     if total_expected > 0:
         success_rate = (successful_grades / total_expected) * 100

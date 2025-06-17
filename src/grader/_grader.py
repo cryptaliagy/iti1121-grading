@@ -426,7 +426,7 @@ def ensure_directory_writable(directory: Path, writer: Writer) -> None:
             )
 
 
-@app.command()
+@app.command(name="single")
 def main(
     test_dir: str = typer.Option(
         ..., "--test-dir", "-t", help="Directory containing test files"
