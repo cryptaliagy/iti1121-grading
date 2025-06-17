@@ -364,7 +364,7 @@ class TestGradingWorkflow:
         
         # Create submission folders with different timestamps
         (submissions_dir / "152711-351765 - Charlie Wilson - May 18, 2025 1224 PM").mkdir()
-        (submissions_dir / "152711-351765 - Charlie Wilson - May 18, 2025 1130 PM").mkdir()  # Earlier
+        (submissions_dir / "152711-351765 - Charlie Wilson - May 18, 2025 1130 PM").mkdir()  # Later
         (submissions_dir / "123456-789012 - Dana Rodriguez - June 15, 2025 930 AM").mkdir()
         
         # Create test DataFrame
