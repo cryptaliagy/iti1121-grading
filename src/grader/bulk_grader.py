@@ -679,7 +679,9 @@ def main(
 
                     # Show result summary
                     if result.success and result.grade:
-                        percentage = result.grade * 100 if result.grade is not None else 0.0
+                        percentage = (
+                            result.grade * 100 if result.grade is not None else 0.0
+                        )
                         writer.always_echo(f"✅ Grade: {percentage:.1f}%")
                     else:
                         writer.always_echo(f"❌ Failed: {result.error_message}")
@@ -712,7 +714,9 @@ def main(
             # Summary
             successful = sum(1 for r in results if r.success)
             failed = len(results) - successful
-            avg_grade = sum(r.grade if r.grade is not None else 0 for r in results if r.success) / max(successful, 1)
+            avg_grade = sum(
+                r.grade if r.grade is not None else 0 for r in results if r.success
+            ) / max(successful, 1)
 
             writer.always_echo("\n" + "=" * 60)
             writer.always_echo("📊 GRADING SUMMARY")
@@ -873,7 +877,9 @@ def generate_post_grading_report(
     writer.always_echo(f"  Extra submissions (not in CSV): {len(submission_no_csv)}")
 
     # Calculate success rate
-    successful_grades = len([r for r in results if r.success and r.grade is not None and r.grade > 0])
+    successful_grades = len(
+        [r for r in results if r.success and r.grade is not None and r.grade > 0]
+    )
     total_expected = len(all_csv_students)
     if total_expected > 0:
         success_rate = (successful_grades / total_expected) * 100
