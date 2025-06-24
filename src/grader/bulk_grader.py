@@ -246,7 +246,6 @@ def find_latest_submissions(
     submissions_dir: Path,
     grading_df: pd.DataFrame,
     writer: Writer,
-    assignment_name: str = "Lab Grade",
 ) -> Dict[str, Tuple[StudentRecord, Path]]:
     """
     Find the latest submission for each student.
@@ -255,7 +254,6 @@ def find_latest_submissions(
         submissions_dir: Directory containing all submissions
         grading_df: DataFrame with student records
         writer: Writer for output
-        assignment_name: Name for the assignment grade column
 
     Returns:
         Dictionary mapping student names to (StudentRecord, submission_path)
@@ -614,7 +612,9 @@ def main(
             # Find latest submissions for each student
             writer.always_echo("\n🔍 Finding latest submissions...")
             latest_submissions = find_latest_submissions(
-                submissions_dir, grading_df, writer, assignment_name
+                submissions_dir,
+                grading_df,
+                writer,
             )
             writer.always_echo(
                 f"Found submissions for {len(latest_submissions)} students"
