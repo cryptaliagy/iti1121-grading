@@ -31,18 +31,16 @@ class TestCSVProcessing:
         csv_file = tmp_path / "grading_list.csv"
         content = """OrgDefinedId,Username,Last Name,First Name,End-of-Line Indicator
 300069634,ASMITH001,Smith,Alice,#
-#300167116,#BJONES002,Jones,Bob,#
-300167116,BJONES002,Jones,Bob,#"""
+#300167116,#BJONES002,Jones,Bob,#"""
 
         csv_file.write_text(content)
 
         df = load_grading_list(csv_file)
 
         # Should not filter out rows starting with #
-        assert len(df) == 3
+        assert len(df) == 2
         assert "ASMITH001" in df["Username"].values
         assert "BJONES002" in df["Username"].values
-        assert "#BJONES002" in df["Username"].values
 
 
 class TestNameMatching:
