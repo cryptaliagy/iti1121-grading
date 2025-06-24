@@ -502,7 +502,9 @@ def save_results_to_csv(
                 output_df.at[idx, assignment_name] = "0.000"
     output_df.drop(["First Name", "Last Name"], axis=1, inplace=True, errors="ignore")
 
-    output_df = output_df[["OrgDefinedId", "Username", assignment_name, "End-of-Line Indicator"]]
+    output_df = output_df[
+        ["OrgDefinedId", "Username", assignment_name, "End-of-Line Indicator"]
+    ]
 
     # Save to CSV with header from DataFrame columns
     output_df.to_csv(output_path, index=False)
@@ -556,8 +558,8 @@ def main(
         None,
         "--grade-only",
         "-G",
-        help="A debug option to test the grading script. Limits the number of students to grade, if set."
-    )
+        help="A debug option to test the grading script. Limits the number of students to grade, if set.",
+    ),
 ) -> None:
     """
     Bulk grader for processing multiple student submissions.
@@ -635,10 +637,13 @@ def main(
             writer.always_echo("\n⚡ Starting grading process...")
             results = []
 
-            for i, (submission_name, (
-                student_record,
-                submission_path,
-            )) in enumerate(latest_submissions.items()):
+            for i, (
+                submission_name,
+                (
+                    student_record,
+                    submission_path,
+                ),
+            ) in enumerate(latest_submissions.items()):
                 if grade_only is not None and i >= grade_only:
                     writer.always_echo(
                         f"🔚 Reached grade limit of {grade_only} students, stopping grading."
