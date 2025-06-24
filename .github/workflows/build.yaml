@@ -17,28 +17,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
+        run: uv sync --no-install-project
 
       - name: Run ruff linting
-        run: poetry run ruff check .
+        run: uv run ruff check .
 
   format:
     name: Format (Ruff)
@@ -50,25 +46,21 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
+        run: uv sync --no-install-project
 
       - name: Check formatting with ruff
         run: poetry run ruff format --check .
@@ -83,31 +75,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
-
-      - name: Install bandit
-        run: poetry add --group dev bandit[toml]
+        run: uv sync --no-install-project
 
       - name: Run bandit security audit
-        run: poetry run bandit -r src/ -f json -o bandit-report.json || poetry run bandit -r src/
+        run: uv run bandit -r src/ -f json -o bandit-report.json || poetry run bandit -r src/
 
   type-check:
     name: Type Check (MyPy)
@@ -119,28 +104,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --no-root
+        run: uv sync --no-install-project
 
       - name: Run mypy type checking
-        run: poetry run mypy --follow-untyped-imports
+        run: uv run mypy --follow-untyped-imports
 
   tests:
     name: Tests
@@ -152,25 +133,21 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-test
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
 
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction
+        run: uv sync
 
       - name: Run tests with coverage
         run: poetry run pytest --cov=src --cov-report=xml --cov-report=html
@@ -216,17 +193,24 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
         with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: uv install --no-install-project
 
       - name: Build package
-        run: poetry build
+        run: uv build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
