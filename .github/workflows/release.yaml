@@ -67,16 +67,16 @@ jobs:
         run: uv run ruff check .
 
       - name: Check formatting
-        run: poetry run ruff format --check .
+        run: uv run ruff format --check .
 
       - name: Run type checking
-        run: poetry run mypy --follow-untyped-imports
+        run: uv run mypy --follow-untyped-imports
 
       - name: Run tests
-        run: poetry run pytest --cov=src --cov-report=xml
+        run: uv run pytest --cov=src --cov-report=xml
 
       - name: Build package
-        run: poetry build
+        run: uv build
 
   docker-build-and-push:
     name: Build and Push Docker Image

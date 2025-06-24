@@ -5,34 +5,28 @@ ENV PYTHONFAULTHANDLER=1 \
   PYTHONHASHSEED=random \
   PIP_NO_CACHE_DIR=off \
   PIP_DISABLE_PIP_VERSION_CHECK=on \
-  PIP_DEFAULT_TIMEOUT=100 \
-  # Poetry's configuration:
-  POETRY_NO_INTERACTION=1 \
-  POETRY_VIRTUALENVS_CREATE=false \
-  POETRY_CACHE_DIR='/var/cache/pypoetry' \
-  POETRY_HOME='/usr/local' \
-  POETRY_VERSION=2.1.3
+  PIP_DEFAULT_TIMEOUT=100
 
 # System deps:
-RUN apt update && apt install curl -y && curl -sSL https://install.python-poetry.org | python3 -
+RUN apt update && apt install curl -y && curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="/usr/bin" sh
 
 # Copy only requirements to cache them in docker layer
 WORKDIR /code
-COPY poetry.lock pyproject.toml /code/
+COPY uv.lock pyproject.toml /code/
 
-RUN poetry install --no-root --no-interaction --only=main
+RUN uv sync --no-install-project --no-dev -p $(which python)
 
-COPY src README.md /code/
+COPY README.md /code/
 
-RUN poetry install --no-interaction --only-root
+COPY src /code/src/
 
+RUN uv sync --no-dev -p $(which python)
 
-ENTRYPOINT ["poetry", "-q", "run", "grader"]
-
+ENTRYPOINT ["uv", "run", "grader"]
 
 FROM dev AS builder
 
-RUN poetry build --format wheel
+RUN uv build --wheel
 
 FROM python:3.11-slim AS prod
 

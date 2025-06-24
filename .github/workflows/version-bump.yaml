@@ -46,7 +46,7 @@ jobs:
       - name: Get current version
         id: current-version
         run: |
-          CURRENT_VERSION=$(poetry version --short)
+          CURRENT_VERSION=$(uv version --short)
           echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "Current version: $CURRENT_VERSION"
 
@@ -56,7 +56,7 @@ jobs:
           if [ -n "${{ github.event.inputs.custom-version }}" ]; then
             # Use custom version
             NEW_VERSION="${{ github.event.inputs.custom-version }}"
-            poetry version "$NEW_VERSION"
+            uv version "$NEW_VERSION"
           else
             # Use version type bump
             uv version --bump ${{ github.event.inputs.version-type }}
