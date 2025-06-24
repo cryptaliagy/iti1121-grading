@@ -81,6 +81,9 @@ def load_grading_list(
     df = pd.read_csv(csv_path)
     df[assignment_name] = pd.Series(dtype="int")
 
+    df["Username"] = df["Username"].astype(str).str.strip("#")
+    df["OrgDefinedId"] = df["OrgDefinedId"].astype(str).str.strip("#")
+
     return df
 
 
@@ -491,7 +494,15 @@ def save_results_to_csv(
                     output_df.at[idx, assignment_name] = ""
                 else:
                     output_df.at[idx, assignment_name] = "0.000"
+        if username not in results_lookup:
+            # If no result found, set to empty or 0 based on failure_is_null
+            if failure_is_null:
+                output_df.at[idx, assignment_name] = ""
+            else:
+                output_df.at[idx, assignment_name] = "0.000"
     output_df.drop(["First Name", "Last Name"], axis=1, inplace=True, errors="ignore")
+
+    output_df = output_df[["OrgDefinedId", "Username", assignment_name, "End-of-Line Indicator"]]
 
     # Save to CSV with header from DataFrame columns
     output_df.to_csv(output_path, index=False)
@@ -541,6 +552,12 @@ def main(
     verbose: bool = typer.Option(
         False, "--verbose/--quiet", "-v/-q", help="Control verbosity of output"
     ),
+    grade_only: int | None = typer.Option(
+        None,
+        "--grade-only",
+        "-G",
+        help="A debug option to test the grading script. Limits the number of students to grade, if set."
+    )
 ) -> None:
     """
     Bulk grader for processing multiple student submissions.
@@ -618,10 +635,15 @@ def main(
             writer.always_echo("\n⚡ Starting grading process...")
             results = []
 
-            for submission_name, (
+            for i, (submission_name, (
                 student_record,
                 submission_path,
-            ) in latest_submissions.items():
+            )) in enumerate(latest_submissions.items()):
+                if grade_only is not None and i >= grade_only:
+                    writer.always_echo(
+                        f"🔚 Reached grade limit of {grade_only} students, stopping grading."
+                    )
+                    break
                 try:
                     # Prepare grading directory
                     grading_dir = prepare_grading_directory(
