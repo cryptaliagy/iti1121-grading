@@ -8,7 +8,6 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import typer
@@ -35,7 +34,7 @@ class StudentRecord:
     username: str
     last_name: str
     first_name: str
-    original_grade: Optional[str] = None
+    original_grade: str | None = None
 
     def normalize(self):
         """
@@ -59,8 +58,8 @@ class GradingResult:
     """Represents the result of grading a student's submission."""
 
     student_record: StudentRecord
-    grade: Optional[float]
-    error_message: Optional[str] = None
+    grade: float | None
+    error_message: str | None = None
     success: bool = True
 
 
@@ -87,7 +86,7 @@ def load_grading_list(
     return df
 
 
-def parse_submission_folder_name(folder_name: str) -> Tuple[str, datetime]:
+def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
     """
     Parse submission folder name to extract student name and timestamp.
 
@@ -189,8 +188,8 @@ def normalize_name(name: str) -> str:
 
 
 def find_best_name_match(
-    target_name: str, candidate_names: List[str], threshold: int = 80
-) -> Optional[str]:
+    target_name: str, candidate_names: list[str], threshold: int = 80
+) -> str | None:
     """
     Find the best matching name using fuzzy string matching.
 
@@ -246,7 +245,7 @@ def find_latest_submissions(
     submissions_dir: Path,
     grading_df: pd.DataFrame,
     writer: Writer,
-) -> Dict[str, Tuple[StudentRecord, Path]]:
+) -> dict[str, tuple[StudentRecord, Path]]:
     """
     Find the latest submission for each student.
 
@@ -258,7 +257,7 @@ def find_latest_submissions(
     Returns:
         Dictionary mapping student names to (StudentRecord, submission_path)
     """
-    submissions: Dict[str, List[Submission]] = {}
+    submissions: dict[str, list[Submission]] = {}
     student_records = {}
 
     # Create student records lookup
@@ -395,7 +394,7 @@ def run_grader_for_student(
     grading_dir: Path,
     test_dir: Path,
     prefix: str,
-    classpath: Optional[List[str]],
+    classpath: list[str] | None,
     writer: Writer,
 ) -> GradingResult:
     """
@@ -459,7 +458,7 @@ def run_grader_for_student(
 
 
 def save_results_to_csv(
-    results: List[GradingResult],
+    results: list[GradingResult],
     original_df: pd.DataFrame,
     output_path: Path,
     failure_is_null: bool,
@@ -537,7 +536,7 @@ def main(
         "-a",
         help="Name for the assignment grade column",
     ),
-    classpath: Optional[List[str]] = typer.Option(
+    classpath: list[str] | None = typer.Option(
         None,
         "--classpath",
         "-cp",
@@ -731,9 +730,9 @@ def main(
 
 
 def generate_post_grading_report(
-    results: List[GradingResult],
+    results: list[GradingResult],
     grading_df: pd.DataFrame,
-    latest_submissions: Dict[str, Tuple[StudentRecord, Path]],
+    latest_submissions: dict[str, tuple[StudentRecord, Path]],
     writer: Writer,
 ) -> None:
     """
