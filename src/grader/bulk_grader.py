@@ -35,7 +35,6 @@ class StudentRecord:
     username: str
     last_name: str
     first_name: str
-    email: str
     original_grade: Optional[str] = None
 
     def normalize(self):
@@ -65,36 +64,6 @@ class GradingResult:
     success: bool = True
 
 
-def normalize_csv_header(csv_path: Path, assignment_name: str = "Lab Grade") -> Path:
-    """
-    Normalize the CSV header to the expected format.
-
-    Args:
-        csv_path: Path to the original CSV file
-        assignment_name: Name for the assignment grade column
-
-    Returns:
-        Path to the normalized CSV file (same file, modified in place)
-    """
-    # Read the file and normalize the header
-    with open(csv_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-
-    if not lines:
-        raise ValueError("CSV file is empty")
-
-    # Replace the header with our normalized version
-    lines[0] = (
-        f"OrgDefinedId,Username,Last Name,First Name,Email,{assignment_name},End-of-Line Indicator\n"
-    )
-
-    # Write back to the same file
-    with open(csv_path, "w", encoding="utf-8") as f:
-        f.writelines(lines)
-
-    return csv_path
-
-
 def load_grading_list(
     csv_path: Path, assignment_name: str = "Lab Grade"
 ) -> pd.DataFrame:
@@ -108,11 +77,9 @@ def load_grading_list(
     Returns:
         DataFrame with student records
     """
-    # Normalize the header
-    normalize_csv_header(csv_path, assignment_name)
-
     # Load the CSV with the normalized header
     df = pd.read_csv(csv_path)
+    df[assignment_name] = pd.Series(dtype="int")
 
     return df
 
@@ -300,10 +267,7 @@ def find_latest_submissions(
             username=str(row["Username"]),
             last_name=str(row["Last Name"]),
             first_name=str(row["First Name"]),
-            email=str(row["Email"]),
-            original_grade=str(row.get(assignment_name, ""))
-            if pd.notna(row.get(assignment_name, ""))
-            else None,
+            original_grade=None,
         )
         record.normalize()
         full_name = f"{record.first_name} {record.last_name}"
@@ -527,9 +491,7 @@ def save_results_to_csv(
                     output_df.at[idx, assignment_name] = ""
                 else:
                     output_df.at[idx, assignment_name] = "0.000"
-    output_df.drop(
-        ["First Name", "Last Name", "Email"], axis=1, inplace=True, errors="ignore"
-    )
+    output_df.drop(["First Name", "Last Name"], axis=1, inplace=True, errors="ignore")
 
     # Save to CSV with header from DataFrame columns
     output_df.to_csv(output_path, index=False)
@@ -588,7 +550,7 @@ def main(
 
     The grading list CSV should be exported from the gradebook using:
     - Sort by: Student Number, Username, First Name, Last Name
-    - Include: Last Name, First Name, Email as User Details
+    - Include: Last Name, First Name as User Details
     - Export with both username and student number as keys
     """
     writer = Writer(verbose)
@@ -786,7 +748,6 @@ def generate_post_grading_report(
             writer.always_echo(
                 f"  • {student.first_name} {student.last_name} ({student.username})"
             )
-            writer.always_echo(f"    Email: {student.email}")
             writer.always_echo(f"    Reason: {reason}")
             writer.always_echo("")
     else:
@@ -815,7 +776,6 @@ def generate_post_grading_report(
             writer.always_echo(
                 f"  • {student.first_name} {student.last_name} ({student.username})"
             )
-            writer.always_echo(f"    Email: {student.email}")
             writer.always_echo(f"    Reason: {reason}")
             writer.always_echo("")
     else:
@@ -836,9 +796,7 @@ def generate_post_grading_report(
                 row = student_row.iloc[0]
                 first_name = str(row["First Name"])
                 last_name = str(row["Last Name"])
-                email = str(row["Email"])
                 writer.always_echo(f"  • {first_name} {last_name} ({username})")
-                writer.always_echo(f"    Email: {email}")
                 writer.always_echo("")
     else:
         writer.always_echo("  ✅ All students in CSV have submissions")
@@ -858,7 +816,6 @@ def generate_post_grading_report(
                     writer.always_echo(
                         f"  • {student_record.first_name} {student_record.last_name} ({username})"
                     )
-                    writer.always_echo(f"    Email: {student_record.email}")
                     writer.always_echo(f"    Submission folder: {submission_path.name}")
                     writer.always_echo("")
                     break

@@ -15,7 +15,6 @@ from grader.bulk_grader import (
     find_best_name_match,
     find_latest_submissions,
     load_grading_list,
-    normalize_csv_header,
     normalize_name,
     parse_submission_folder_name,
     prepare_grading_directory,
@@ -27,33 +26,13 @@ from grader._grader import Writer
 class TestCSVProcessing:
     """Test CSV loading and processing functions."""
 
-    def test_normalize_csv_header(self, tmp_path):
-        """Test CSV header normalization."""
-        csv_file = tmp_path / "test.csv"
-        original_content = """OrgDefinedId,Username,Last Name,First Name,Email,Lab 1 Points Grade <Numeric MaxPoints:1 Weight:11.11111111 Category:Labs CategoryWeight:10>,End-of-Line Indicator
-#300069634,#ASMITH001,Smith,Alice,asmith001@example.edu,,#
-#300167116,#BJONES002,Jones,Bob,bjones002@example.edu,,#"""
-
-        csv_file.write_text(original_content)
-
-        result_path = normalize_csv_header(csv_file)
-
-        with open(result_path, "r") as f:
-            lines = f.readlines()
-
-        assert (
-            lines[0].strip()
-            == "OrgDefinedId,Username,Last Name,First Name,Email,Lab Grade,End-of-Line Indicator"
-        )
-        assert len(lines) == 3  # Header + 2 data rows
-
     def test_load_grading_list(self, tmp_path):
         """Test loading grading list CSV."""
         csv_file = tmp_path / "grading_list.csv"
-        content = """OrgDefinedId,Username,Last Name,First Name,Email,Lab 1 Grade,End-of-Line Indicator
-300069634,ASMITH001,Smith,Alice,asmith001@example.edu,,#
-#300167116,#BJONES002,Jones,Bob,bjones002@example.edu,,#
-300167116,BJONES002,Jones,Bob,bjones002@example.edu,,#"""
+        content = """OrgDefinedId,Username,Last Name,First Name,End-of-Line Indicator
+300069634,ASMITH001,Smith,Alice,#
+#300167116,#BJONES002,Jones,Bob,#
+300167116,BJONES002,Jones,Bob,#"""
 
         csv_file.write_text(content)
 
@@ -497,7 +476,6 @@ class TestGradingWorkflow:
             "Username": ["CWILS001", "DRODR002"],
             "Last Name": ["Wilson", "Rodriguez"],
             "First Name": ["Charlie", "Dana"],
-            "Email": ["cwils001@example.edu", "drodr002@example.edu"],
             "Lab Grade": ["", ""],
         }
         grading_df = pd.DataFrame(grading_data)
@@ -528,19 +506,14 @@ class TestGradingWorkflow:
             "Username": ["CWILS001", "DRODR002"],
             "Last Name": ["Wilson", "Rodriguez"],
             "First Name": ["Charlie", "Dana"],
-            "Email": ["cwils001@example.edu", "drodr002@example.edu"],
             "Lab Grade": ["", ""],
             "End-of-Line Indicator": ["#", "#"],
         }
         original_df = pd.DataFrame(original_data)
 
         # Create test results
-        student1 = StudentRecord(
-            "300069634", "CWILS001", "Wilson", "Charlie", "cwils001@example.edu"
-        )
-        student2 = StudentRecord(
-            "300173416", "DRODR002", "Rodriguez", "Dana", "drodr002@example.edu"
-        )
+        student1 = StudentRecord("300069634", "CWILS001", "Wilson", "Charlie")
+        student2 = StudentRecord("300173416", "DRODR002", "Rodriguez", "Dana")
 
         results = [
             GradingResult(student1, 0.85, success=True),
@@ -583,7 +556,6 @@ class TestDataStructures:
             username="CWILS001",
             last_name="Wilson",
             first_name="Charlie",
-            email="cwils001@example.edu",
         )
 
         assert record.org_defined_id == "300069634"

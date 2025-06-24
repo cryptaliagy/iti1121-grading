@@ -118,12 +118,12 @@ grader bulk -s submissions.zip -g students.csv -t tests -p TestL1
 The grading list CSV should be exported from your gradebook with the following requirements:
 
 - **Sort by**: Student Number, Username, First Name, Last Name
-- **Include**: Last Name, First Name, Email as User Details
+- **Include**: Last Name, First Name as User Details
 - **Export with both username and student number as keys**
 
-The tool will automatically normalize the CSV header to the expected format:
+The tool will automatically normalize the output CSV header to the expected format:
 ```
-OrgDefinedId,Username,Last Name,First Name,Email,Lab Grade,End-of-Line Indicator
+OrgDefinedId,Username,Last Name,First Name,Lab Grade,End-of-Line Indicator
 ```
 
 ### Submission Folder Format
