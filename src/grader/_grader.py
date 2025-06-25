@@ -253,14 +253,14 @@ def calculate_grade_from_output(output: str) -> tuple[float, float]:
     possible_points = 0.0
 
     grade_pattern = re.compile(
-        r"Grade for .+ \(out of possible (\d+\.\d+)\): (\d+\.\d+)"
+        r"Grade for .+ \(out of (a\s+)?possible (?P<max>\d+(\.\d+)?)\): (?P<total>\d+(\.\d+)?)"
     )
 
     for line in output.split("\n"):
         match = grade_pattern.search(line)
         if match:
-            possible = float(match.group(1))
-            achieved = float(match.group(2))
+            possible = float(match.group("max"))
+            achieved = float(match.group("total"))
             total_points += achieved
             possible_points += possible
 

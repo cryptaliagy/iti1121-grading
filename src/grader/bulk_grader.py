@@ -672,6 +672,9 @@ def main(
                         )
                         writer.always_echo(f"✅ Grade: {percentage:.1f}%")
                     else:
+                        if result.error_message is None:
+                            writer.always_echo("❌ Failed: No grade available")
+                            breakpoint()
                         writer.always_echo(f"❌ Failed: {result.error_message}")
 
                 except Exception as e:
