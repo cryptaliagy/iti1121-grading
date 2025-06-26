@@ -30,6 +30,15 @@ A CLI tool for automating the process of running Java tests for ITI 1121 assignm
 - (Optional) `pipx` for isolated Python environments
 - (Optional) All Java libraries/JAR files required for the tests should be available in your classpath
 
+### Development Dependencies
+
+- `uv` for dependency management (and build system)
+- `ruff` for formatting and linting
+- `mypy` for static type checking
+- `bandit` for security scanning
+- `pytest` for running test code
+- `pytest-cov` for code coverage
+
 ## Features
 
 - Quickly compile and run Java test files
@@ -55,19 +64,29 @@ cd iti1121-grading
 pipx install .
 ```
 
-### Using Poetry (Useful for development)
+### Using UV (Useful for development)
+
+[uv]() is a very useful dependency management and build system built by the creators of [ruff]() (which is also used in this package). If you are planning on working on this tool, please use `uv`.
+
+Installing the tool globally in an isolated environment (similar to `pipx`) can be done with the following:
 
 ```bash
-poetry install
+uv tool install .  # Alternatively, use `uv tool install -e .` to make it editable
 ```
 
-If installing with Poetry, you can run the tool using:
+Alternatively, you can create a local virtual environment using
 
 ```bash
-poetry run grader
+uv sync
 ```
 
-If following along with the usage example below, replace `grader` with `poetry run grader`.
+and then run the grading CLI with
+
+```bash
+uv run grader
+```
+
+If following along with the usage docs, replace `grader` with `uv run grader` if using `uv sync`.
 
 ### Using pip (Not recommended)
 

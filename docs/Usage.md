@@ -199,7 +199,6 @@ The bulk grading process is more complex and handles multiple submissions automa
 1. **Input Validation**: Verifies that all required files exist (ZIP, CSV, test directory)
 
 2. **CSV Processing**: 
-   - Loads and normalizes the gradebook CSV header
    - Creates student records with normalized usernames and IDs
 
 3. **Submission Extraction**: 
