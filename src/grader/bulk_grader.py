@@ -21,6 +21,9 @@ from ._grader import (
     find_test_files,
     run_test,
     FileOperationError,
+    preprocess_codefile,
+    CodeFilePreprocessingOptions,
+    collect_code_files,
 )
 
 app = typer.Typer(help="Bulk grader for processing multiple student submissions")
@@ -396,6 +399,7 @@ def run_grader_for_student(
     prefix: str,
     classpath: list[str] | None,
     writer: Writer,
+    should_preprocess: bool = False,
 ) -> GradingResult:
     """
     Run the grader for a single student.
@@ -407,6 +411,7 @@ def run_grader_for_student(
         prefix: Test file prefix
         classpath: Optional classpath entries
         writer: Writer for output
+        should_preprocess: Whether to preprocess code files before grading
 
     Returns:
         GradingResult with the outcome
@@ -417,6 +422,13 @@ def run_grader_for_student(
             f"Grading: {student_record.first_name} {student_record.last_name} ({student_record.username})"
         )
         writer.always_echo(f"{'=' * 60}")
+
+        # Preprocess code files if enabled
+        if should_preprocess:
+            code_files = collect_code_files(grading_dir, writer)
+            options = CodeFilePreprocessingOptions()
+            for code_file in code_files:
+                preprocess_codefile(options, code_file, writer)
 
         # Find test files
         test_files = find_test_files(test_dir, prefix, writer)
@@ -557,6 +569,12 @@ def main(
         "-G",
         help="A debug option to test the grading script. Limits the number of students to grade, if set.",
     ),
+    preprocess_code: bool = typer.Option(
+        False,
+        "--preprocess-code",
+        "-P",
+        help="Preprocess code files before grading (e.g. remove package statements)",
+    ),
 ) -> None:
     """
     Bulk grader for processing multiple student submissions.
@@ -579,6 +597,13 @@ def main(
         output_path = Path(output).resolve()
 
         writer.always_echo("🎓 Starting bulk grading process...")
+
+        if preprocess_code:
+            writer.always_echo(
+                "🔧 Preprocessing code files before grading is enabled. "
+                "This will remove package statements and other unnecessary parts."
+            )
+
         writer.always_echo(f"Submissions: {submissions_path}")
         writer.always_echo(f"Grading list: {grading_list_path}")
         writer.always_echo(f"Test directory: {test_dir_path}")
@@ -662,6 +687,7 @@ def main(
                         prefix,
                         resolved_classpath,
                         writer,
+                        should_preprocess=preprocess_code,
                     )
                     results.append(result)
 

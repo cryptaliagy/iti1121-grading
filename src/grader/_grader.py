@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from dataclasses import dataclass
 import re
 import os
 import shutil
@@ -22,6 +23,18 @@ class FileOperationError(Exception):
     """Exception raised for errors in file operations."""
 
     pass
+
+
+@dataclass
+class CodeFilePreprocessingOptions:
+    """
+    Options for preprocessing code files.
+
+    This class can be extended in the future to include more options.
+    Currently, it is a placeholder for future enhancements.
+    """
+
+    remove_package_declaration: bool = True
 
 
 class Writer:
@@ -427,6 +440,60 @@ def ensure_directory_writable(directory: Path, writer: Writer) -> None:
             )
 
 
+def preprocess_codefile(
+    options: CodeFilePreprocessingOptions,
+    code_file: Path,
+    writer: Writer,
+) -> None:
+    """
+    Preprocess a code file to ensure it is ready for compilation.
+
+    Args:
+        options: Preprocessing options
+        code_file: Path to the code file to preprocess
+        writer: Writer object for console output
+    """
+
+    if not code_file.exists():
+        raise FileOperationError(f"Code file {code_file} does not exist.")
+
+    # Read the original content
+    with code_file.open("r") as f:
+        content = f.read()
+
+    # Remove package declaration if specified
+    if options.remove_package_declaration:
+        content = re.sub(r"^\s*package\s+\w+;\s*", "", content, flags=re.MULTILINE)
+
+    # Write the modified content back to the file
+    with code_file.open("w") as f:
+        f.write(content)
+
+    writer.echo(f"Preprocessed {code_file} successfully")
+
+
+def collect_code_files(code_dir: Path, writer: Writer) -> list[Path]:
+    """
+    Collect all Java code files from the specified directory.
+
+    Args:
+        code_dir: Directory to search for Java code files
+        writer: Writer object for console output
+
+    Returns:
+        List of Path objects for Java code files found in the directory
+    """
+    if not code_dir.exists() or not code_dir.is_dir():
+        raise FileOperationError(f"Code directory {code_dir} does not exist.")
+
+    java_files = list(code_dir.glob("*.java"))
+    if not java_files:
+        raise FileOperationError(f"No Java files found in {code_dir}")
+
+    writer.echo(f"Found {len(java_files)} Java files in {code_dir}")
+    return java_files
+
+
 @app.command(name="single")
 def main(
     test_dir: str = typer.Option(
@@ -455,6 +522,12 @@ def main(
         "--verbose/--quiet",
         "-v/-q",
         help="Control verbosity of output",
+    ),
+    preprocess_code: bool = typer.Option(
+        False,
+        "--preprocess-code/",
+        "-P",
+        help="Enable or disable preprocessing of code files (e.g. removes package statements)",
     ),
 ) -> None:
     """
@@ -489,6 +562,20 @@ def main(
                 resolved_classpath.append(str(cp_path))
 
             writer.echo(f"Classpath entries: {resolved_classpath}")
+
+        # Preprocess code files in the code directory
+        if preprocess_code:
+            code_files = collect_code_files(code_dir_path, writer)
+            for code_file in code_files:
+                try:
+                    preprocess_codefile(
+                        CodeFilePreprocessingOptions(),
+                        code_file,
+                        writer,
+                    )
+                except FileOperationError as e:
+                    writer.always_echo(f"[red]Error:[/red] {e}")
+                    sys.exit(ERROR_EXIT_CODE)
 
         # Find all test files
         test_files = find_test_files(test_dir_path, prefix, writer)
