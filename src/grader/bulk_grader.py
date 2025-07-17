@@ -355,28 +355,12 @@ def prepare_grading_directory(
     zip_files = list(submission_path.glob("*.zip"))
     java_files = list(submission_path.glob("*.java"))
 
-    if zip_files:
-        # Extract all ZIP files to the grading directory
-        writer.echo(f"Found {len(zip_files)} ZIP files in submission")
-        for zip_file in zip_files:
-            writer.echo(f"Extracting {zip_file.name}")
-            with zipfile.ZipFile(zip_file, "r") as zip_ref:
-                # Extract all files, flattening directory structure
-                for member in zip_ref.infolist():
-                    if not member.is_dir() and member.filename.endswith(".java"):
-                        # Get just the filename, ignore directory structure
-                        filename = Path(member.filename).name
-                        target_path = grading_dir / filename
+    if not zip_files and not java_files:
+        raise FileOperationError(
+            f"No ZIP or Java files found in submission: {submission_path}"
+        )
 
-                        # Extract to target path
-                        with (
-                            zip_ref.open(member) as source,
-                            open(target_path, "wb") as target,
-                        ):
-                            target.write(source.read())
-                        writer.echo(f"  Extracted {filename}")
-
-    elif java_files:
+    if java_files:
         # Copy Java files directly
         writer.echo(f"Found {len(java_files)} Java files in submission")
         for java_file in java_files:
@@ -384,12 +368,43 @@ def prepare_grading_directory(
             shutil.copy2(java_file, target_path)
             writer.echo(f"  Copied {java_file.name}")
 
-    else:
-        raise FileOperationError(
-            f"No ZIP or Java files found in submission: {submission_path}"
-        )
+        return grading_dir
+
+    # Extract all ZIP files to the grading directory
+    writer.echo(f"Found {len(zip_files)} ZIP files in submission")
+    for zip_file in zip_files:
+        writer.echo(f"Extracting {zip_file.name}")
+        extract_zipfile(writer, grading_dir, zip_file)
 
     return grading_dir
+
+
+def extract_zipfile(writer: Writer, grading_dir: Path, zip_file: Path):
+    """
+    Extract a ZIP file to the grading directory.
+
+    Args:
+        writer: Writer for output
+        grading_dir: Directory to extract files into
+        zip_file: Path to the ZIP file to extract
+    """
+    with zipfile.ZipFile(zip_file, "r") as zip_ref:
+        # Extract all files, flattening directory structure
+        for member in zip_ref.infolist():
+            if member.is_dir() or not member.filename.endswith(".java"):
+                # Skip directories and non-Java files
+                continue
+            # Get just the filename, ignore directory structure
+            filename = Path(member.filename).name
+            target_path = grading_dir / filename
+
+            # Extract to target path
+            with (
+                zip_ref.open(member) as source,
+                open(target_path, "wb") as target,
+            ):
+                target.write(source.read())
+            writer.echo(f"  Extracted {filename}")
 
 
 def run_grader_for_student(
