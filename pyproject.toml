@@ -27,15 +27,6 @@ grader = "grader.__main__:app"
 requires = ["uv_build>=0.7.14,<0.8.0"]
 build-backend = "uv_build"
 
-[dependency-groups]
-dev = [
-    "bandit[toml]>=1.8.5",
-    "mypy>=1.16.1",
-    "pytest>=8.4.1",
-    "pytest-cov>=6.2.1",
-    "ruff>=0.12.0",
-]
-
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
 exclude = [
