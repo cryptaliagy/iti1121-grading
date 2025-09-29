@@ -1,5 +1,5 @@
 import typer
-from grader._grader import app as grader_app
+from grader.grader import app as grader_app
 from grader.bulk_grader import app as bulk_grader_app
 
 app = typer.Typer(help="ITI 1121 Grading CLI Tools")
