@@ -12,45 +12,87 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          fetch-depth: 0
+          python-version: "3.13"
 
       - name: Install UV
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: uv sync --no-install-project
+
       - name: Run ruff linting
-        run: uvx ruff check .
+        run: uv run ruff check .
 
   format:
     name: Format (Ruff)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          fetch-depth: 0
+          python-version: "3.13"
 
       - name: Install UV
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-      - name: Run ruff format check
-        run: uvx ruff format --check .
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: uv sync --no-install-project
+
+      - name: Check formatting with ruff
+        run: uv run ruff format --check .
 
   security:
     name: Security Audit (Bandit)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          fetch-depth: 0
+          python-version: "3.13"
 
       - name: Install UV
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/uv.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: uv sync --no-install-project
+
       - name: Run bandit security audit
-        run: uvx bandit -r src
+        run: uv run bandit -r src/ -f json -o bandit-report.json
 
   type-check:
     name: Type Check (MyPy)
@@ -60,7 +102,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: "3.13"
@@ -80,7 +121,7 @@ jobs:
         run: uv sync --no-install-project
 
       - name: Run mypy type checking
-        run: uvx mypy --follow-untyped-imports
+        run: uv run mypy --follow-untyped-imports
 
   tests:
     strategy:
@@ -94,7 +135,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: "${{ matrix.python-version }}"
@@ -156,7 +196,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        id: setup-python
         uses: actions/setup-python@v4
         with:
           python-version: "3.13"

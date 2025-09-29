@@ -7,11 +7,20 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from grader.common import GradingResult, StudentRecord, Submission
-from grader.csv_processing import load_grading_list, save_results_to_csv
-from grader.name_matching import Matcher
-from grader.submission_processing import SubmissionProcessor
-from grader.writer import Writer
+from grader.bulk_grader import (
+    GradingResult,
+    StudentRecord,
+    Submission,
+    extract_submissions,
+    find_best_name_match,
+    find_latest_submissions,
+    load_grading_list,
+    normalize_name,
+    parse_submission_folder_name,
+    prepare_grading_directory,
+    save_results_to_csv,
+)
+from grader._grader import Writer
 
 
 class TestCSVProcessing:
@@ -85,7 +94,7 @@ class TestNameMatching:
     )
     def test_normalize_name_basic(self, input_name, expected):
         """Test basic name normalization cases."""
-        assert Matcher().normalize_name(input_name) == expected
+        assert normalize_name(input_name) == expected
 
     @pytest.mark.parametrize(
         "input_name,expected",
@@ -130,7 +139,7 @@ class TestNameMatching:
     )
     def test_normalize_name_unicode(self, input_name, expected):
         """Test name normalization with unicode characters."""
-        assert Matcher().normalize_name(input_name) == expected
+        assert normalize_name(input_name) == expected
 
     @pytest.mark.parametrize(
         "query,candidates,expected",
@@ -169,7 +178,7 @@ class TestNameMatching:
     )
     def test_find_best_name_match_basic(self, query, candidates, expected):
         """Test basic fuzzy name matching."""
-        assert Matcher().find_best_name_match(query, candidates) == expected
+        assert find_best_name_match(query, candidates) == expected
 
     @pytest.mark.parametrize(
         "query,candidates,threshold,expected",
@@ -202,10 +211,7 @@ class TestNameMatching:
         self, query, candidates, threshold, expected
     ):
         """Test fuzzy name matching with custom threshold."""
-        assert (
-            Matcher(threshold=threshold).find_best_name_match(query, candidates)
-            == expected
-        )
+        assert find_best_name_match(query, candidates, threshold=threshold) == expected
 
     @pytest.mark.parametrize(
         "query,candidates,expected",
@@ -303,7 +309,7 @@ class TestNameMatching:
     )
     def test_find_best_name_match_international(self, query, candidates, expected):
         """Test fuzzy name matching with international names."""
-        assert Matcher().find_best_name_match(query, candidates) == expected
+        assert find_best_name_match(query, candidates) == expected
 
     @pytest.mark.parametrize(
         "query,candidates,threshold,expected",
@@ -321,10 +327,7 @@ class TestNameMatching:
         self, query, candidates, threshold, expected
     ):
         """Test fuzzy name matching with compound names and threshold."""
-        assert (
-            Matcher(threshold=threshold).find_best_name_match(query, candidates)
-            == expected
-        )
+        assert find_best_name_match(query, candidates, threshold=threshold) == expected
 
 
 class TestSubmissionParsing:
@@ -332,47 +335,39 @@ class TestSubmissionParsing:
 
     def test_parse_submission_folder_name(self):
         """Test parsing submission folder names."""
-
-        writer = Writer(verbose=False)
-        matcher = Matcher()
-        processor = SubmissionProcessor(writer=writer, matcher=matcher)
         # Standard format
         folder_name = "152711-351765 - Charlie Wilson - May 18, 2025 1224 PM"
-        name, timestamp = processor.parse_submission_folder_name(folder_name)
+        name, timestamp = parse_submission_folder_name(folder_name)
 
         assert name == "Charlie Wilson"
         assert timestamp == datetime(2025, 5, 18, 12, 24)
 
         # AM time
         folder_name = "123456-789012 - Dana Rodriguez - June 15, 2025 930 AM"
-        name, timestamp = processor.parse_submission_folder_name(folder_name)
+        name, timestamp = parse_submission_folder_name(folder_name)
 
         assert name == "Dana Rodriguez"
         assert timestamp == datetime(2025, 6, 15, 9, 30)
 
         # 12 PM (noon)
         folder_name = "123456-789012 - Test Student - July 4, 2025 1200 PM"
-        name, timestamp = processor.parse_submission_folder_name(folder_name)
+        name, timestamp = parse_submission_folder_name(folder_name)
 
         assert timestamp == datetime(2025, 7, 4, 12, 0)
 
         # 12 AM (midnight)
         folder_name = "123456-789012 - Test Student - July 4, 2025 1200 AM"
-        name, timestamp = processor.parse_submission_folder_name(folder_name)
+        name, timestamp = parse_submission_folder_name(folder_name)
 
         assert timestamp == datetime(2025, 7, 4, 0, 0)
 
     def test_parse_submission_folder_name_invalid(self):
         """Test parsing invalid folder names."""
-        writer = Writer(verbose=False)
-        matcher = Matcher()
-        processor = SubmissionProcessor(writer=writer, matcher=matcher)
+        with pytest.raises(ValueError):
+            parse_submission_folder_name("Invalid folder name")
 
         with pytest.raises(ValueError):
-            processor.parse_submission_folder_name("Invalid folder name")
-
-        with pytest.raises(ValueError):
-            processor.parse_submission_folder_name(
+            parse_submission_folder_name(
                 "123-456 - Name - InvalidMonth 1, 2025 1200 PM"
             )
 
@@ -382,10 +377,6 @@ class TestFileOperations:
 
     def test_extract_submissions(self, tmp_path):
         """Test extracting submissions ZIP file."""
-        writer = Writer(verbose=False)
-        matcher = Matcher()
-        processor = SubmissionProcessor(writer=writer, matcher=matcher)
-
         # Create a test ZIP file with submission folders
         zip_path = tmp_path / "submissions.zip"
 
@@ -402,7 +393,7 @@ class TestFileOperations:
         temp_dir = tmp_path / "temp"
         temp_dir.mkdir()
 
-        submissions_dir = processor.extract_submissions(zip_path, temp_dir)
+        submissions_dir = extract_submissions(zip_path, temp_dir)
 
         assert submissions_dir.exists()
         assert (
@@ -414,10 +405,6 @@ class TestFileOperations:
 
     def test_prepare_grading_directory_with_java_files(self, tmp_path):
         """Test preparing grading directory with Java files."""
-        writer = Writer(verbose=False)
-        matcher = Matcher()
-        processor = SubmissionProcessor(writer=writer, matcher=matcher)
-
         submission_dir = tmp_path / "submission"
         submission_dir.mkdir()
 
@@ -429,10 +416,7 @@ class TestFileOperations:
         temp_dir.mkdir()
 
         writer = Writer(verbose=False)
-        grading_dir = processor.prepare_grading_directory(
-            submission_dir,
-            temp_dir,
-        )
+        grading_dir = prepare_grading_directory(submission_dir, temp_dir, writer)
 
         assert grading_dir.exists()
         assert (grading_dir / "Test.java").exists()
@@ -440,9 +424,6 @@ class TestFileOperations:
 
     def test_prepare_grading_directory_with_zip_files(self, tmp_path):
         """Test preparing grading directory with ZIP files."""
-        writer = Writer(verbose=False)
-        matcher = Matcher()
-        processor = SubmissionProcessor(writer=writer, matcher=matcher)
         submission_dir = tmp_path / "submission"
         submission_dir.mkdir()
 
@@ -457,10 +438,7 @@ class TestFileOperations:
         temp_dir.mkdir()
 
         writer = Writer(verbose=False)
-        grading_dir = processor.prepare_grading_directory(
-            submission_dir,
-            temp_dir,
-        )
+        grading_dir = prepare_grading_directory(submission_dir, temp_dir, writer)
 
         assert grading_dir.exists()
         assert (grading_dir / "Test.java").exists()
@@ -475,10 +453,6 @@ class TestGradingWorkflow:
 
     def test_find_latest_submissions(self, tmp_path):
         """Test finding latest submissions for students."""
-        writer = Writer(verbose=False)
-        matcher = Matcher()
-        processor = SubmissionProcessor(writer=writer, matcher=matcher)
-
         # Create test submissions directory
         submissions_dir = tmp_path / "submissions"
         submissions_dir.mkdir()
@@ -505,8 +479,8 @@ class TestGradingWorkflow:
         grading_df = pd.DataFrame(grading_data)
 
         writer = Writer(verbose=False)
-        latest_submissions = processor.find_latest_submissions(
-            submissions_dir, grading_df
+        latest_submissions = find_latest_submissions(
+            submissions_dir, grading_df, writer
         )
 
         # Should find 2 students
