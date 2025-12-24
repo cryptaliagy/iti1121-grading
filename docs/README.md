@@ -114,7 +114,7 @@ Outlines the path from current to future state:
 
 | Document | Purpose | Target Audience | Length |
 |----------|---------|-----------------|--------|
-| Usage Guide | How to use the tool | End users | 431 lines |
+| Usage Guide | How to use the tool | End users | 430 lines |
 | Current State | Understand existing code | Developers | 327 lines |
 | Modular Architecture | Design vision | Architects/Developers | 820 lines |
 | Refactoring Plan | Implementation roadmap | Contributors/Maintainers | 667 lines |
