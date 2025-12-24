@@ -104,6 +104,16 @@ pip install -e .
 
 See the [Usage.md](./docs/Usage.md) file.
 
+## Documentation
+
+Comprehensive documentation is available in the [docs/](./docs/) directory:
+
+- **[Usage Guide](./docs/Usage.md)** - How to use the grading tool
+- **[Current State](./docs/CurrentState.md)** - Analysis of the current implementation
+- **[Modular Architecture](./docs/ModularArchitecture.md)** - Vision for future architecture
+- **[Refactoring Plan](./docs/RefactoringPlan.md)** - Multi-stage implementation roadmap
+- **[Documentation Index](./docs/README.md)** - Complete documentation overview
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
