@@ -2,7 +2,6 @@
 
 """Unit tests for infrastructure adapters."""
 
-
 from grader._grader import Writer
 from grader.infrastructure.adapters import (
     LegacyFileSystemAdapter,
