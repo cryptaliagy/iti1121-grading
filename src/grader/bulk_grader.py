@@ -715,8 +715,8 @@ def main(
                     else:
                         if result.error_message is None:
                             writer.always_echo("❌ Failed: No grade available")
-                            breakpoint()
-                        writer.always_echo(f"❌ Failed: {result.error_message}")
+                        else:
+                            writer.always_echo(f"❌ Failed: {result.error_message}")
 
                 except Exception as e:
                     writer.always_echo(
