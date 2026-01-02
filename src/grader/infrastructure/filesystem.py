@@ -210,9 +210,8 @@ class InMemoryFileSystem:
         # Simple pattern matching - just support "*" and "*.ext" for now
         results = []
         for file_path in self._files.keys():
-            # Check if file is in the specified directory
-            try:
-                file_path.relative_to(directory)
+            # Check if file is in the specified directory by comparing parent
+            if file_path.parent == directory or directory == Path("."):
                 # Simple pattern matching
                 if pattern == "*":
                     results.append(file_path)
@@ -222,9 +221,6 @@ class InMemoryFileSystem:
                         results.append(file_path)
                 elif file_path.name == pattern:
                     results.append(file_path)
-            except ValueError:
-                # Not in this directory
-                continue
         
         return sorted(results)
 
@@ -238,7 +234,7 @@ class InMemoryFileSystem:
         self._directories.add(path)
         # Also add all parent directories
         parent = path.parent
-        while parent != Path(".") and parent != Path("/"):
+        while parent != path and parent != Path(".") and parent != Path("/"):
             self._directories.add(parent)
             parent = parent.parent
 

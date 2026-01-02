@@ -25,7 +25,7 @@ class TestZipSubmissionProcessor:
     """Test the ZipSubmissionProcessor implementation."""
 
     def test_extract_submission(self):
-        """Test extracting a submissions ZIP file."""
+        """Test extracting a submission ZIP file."""
         processor = ZipSubmissionProcessor(verbose=False)
 
         with tempfile.TemporaryDirectory() as tmpdir:

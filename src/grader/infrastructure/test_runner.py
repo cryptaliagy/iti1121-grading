@@ -139,13 +139,13 @@ class JavaProcessTestRunner:
         original_dir = os.getcwd()
         os.chdir(config.target_dir)
 
+        start_time = time.time()
         try:
             command = self._build_run_command(config.main_test_file, config.classpath)
 
             if self.verbose:
                 print(f"Running: {' '.join(command)}\n\n")
 
-            start_time = time.time()
             result = subprocess.run(  # nosec: B603
                 command,
                 capture_output=True,
