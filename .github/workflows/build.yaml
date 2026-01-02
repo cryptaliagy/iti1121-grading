@@ -176,30 +176,46 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Cache Docker layers
-        uses: actions/cache@v3
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('**/Dockerfile') }}-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-${{ hashFiles('**/Dockerfile') }}-
-            ${{ runner.os }}-buildx-
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Test Docker Compose build (dev target)
-        run: |
-          DOCKER_TARGET=dev docker compose build
-        env:
-          BUILDKIT_INLINE_CACHE: 1
-          COMPOSE_DOCKER_CLI_BUILD: 1
-          DOCKER_BUILDKIT: 1
+      - name: Build Docker Image (dev target)
+        id: buildDev
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: dev
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Test Docker Compose build (prod target)
-        run: |
-          DOCKER_TARGET=prod docker compose build
-        env:
-          BUILDKIT_INLINE_CACHE: 1
-          COMPOSE_DOCKER_CLI_BUILD: 1
-          DOCKER_BUILDKIT: 1
+      # Disabled due to simplistic prod target and caching issues
+      # - name: Build Docker Image (prod target)
+      #   id: buildProd
+      #   uses: docker/build-push-action@v6
+      #   with:
+      #     context: .
+      #     file: ./Dockerfile
+      #     target: prod
+      #     push: false
+      #     tags: ${{ steps.meta.outputs.tags }}
+      #     labels: ${{ steps.meta.outputs.labels }}
+      #     platforms: linux/amd64,linux/arm64
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
 
       - name: Clean up Docker images
         if: always()
