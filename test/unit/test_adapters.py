@@ -2,8 +2,6 @@
 
 """Unit tests for infrastructure adapters."""
 
-import pytest
-from pathlib import Path
 
 from grader._grader import Writer
 from grader.infrastructure.adapters import (
@@ -119,7 +117,7 @@ class TestLegacyCodePreprocessorAdapter:
             "\n"
             "public class Test {\n"
             "    public static void main(String[] args) {\n"
-            "        System.out.println(\"Hello\");\n"
+            '        System.out.println("Hello");\n'
             "    }\n"
             "}\n"
         )
@@ -139,12 +137,7 @@ class TestLegacyCodePreprocessorAdapter:
         adapter = LegacyCodePreprocessorAdapter(writer, options)
 
         code_file = tmp_path / "Test.java"
-        original_content = (
-            "package com.example;\n"
-            "\n"
-            "public class Test {\n"
-            "}\n"
-        )
+        original_content = "package com.example;\n\npublic class Test {\n}\n"
         code_file.write_text(original_content)
 
         adapter.preprocess(code_file)
@@ -166,7 +159,7 @@ class TestLegacyTestRunnerAdapter:
         java_file.write_text(
             "public class HelloWorld {\n"
             "    public static void main(String[] args) {\n"
-            "        System.out.println(\"Hello, World!\");\n"
+            '        System.out.println("Hello, World!");\n'
             "    }\n"
             "}\n"
         )
@@ -214,7 +207,7 @@ class TestLegacyTestRunnerAdapter:
         java_file.write_text(
             "public class HelloWorld {\n"
             "    public static void main(String[] args) {\n"
-            "        System.out.println(\"Hello, World!\");\n"
+            '        System.out.println("Hello, World!");\n'
             "    }\n"
             "}\n"
         )
@@ -245,7 +238,7 @@ class TestLegacyTestRunnerAdapter:
         java_file.write_text(
             "public class StderrTest {\n"
             "    public static void main(String[] args) {\n"
-            "        System.err.println(\"Error message\");\n"
+            '        System.err.println("Error message");\n'
             "    }\n"
             "}\n"
         )

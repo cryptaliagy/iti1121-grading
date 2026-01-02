@@ -2,7 +2,6 @@
 
 """Unit tests for domain models."""
 
-import pytest
 from datetime import datetime
 from pathlib import Path
 

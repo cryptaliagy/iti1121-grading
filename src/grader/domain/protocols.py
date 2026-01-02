@@ -59,9 +59,7 @@ class TestOutputParser(Protocol):
 class GradingStrategy(Protocol):
     """Protocol for different grading strategies."""
 
-    def apply_strategy(
-        self, points_earned: float, points_possible: float
-    ) -> float:
+    def apply_strategy(self, points_earned: float, points_possible: float) -> float:
         """
         Apply a grading strategy to calculate the final score.
 

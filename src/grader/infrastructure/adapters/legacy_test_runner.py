@@ -46,9 +46,7 @@ class LegacyTestRunnerAdapter:
             command = build_compile_command(config.main_test_file, config.classpath)
             self.writer.always_echo(f"Running: {' '.join(command)}\n")
 
-            result = subprocess.run(
-                command, capture_output=True, text=True
-            )  # nosec: B603
+            result = subprocess.run(command, capture_output=True, text=True)  # nosec: B603
             if result.returncode != 0:
                 self.writer.always_echo("Compilation [red]failed[/red] with error:")
                 self.writer.always_echo(result.stderr)
