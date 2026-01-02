@@ -176,15 +176,33 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('**/Dockerfile') }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-${{ hashFiles('**/Dockerfile') }}-
+            ${{ runner.os }}-buildx-
+
       - name: Test Docker Compose build (dev target)
         run: |
-          DOCKER_TARGET=dev docker compose build --no-cache
+          DOCKER_TARGET=dev docker compose build
+        env:
+          BUILDKIT_INLINE_CACHE: 1
+          COMPOSE_DOCKER_CLI_BUILD: 1
+          DOCKER_BUILDKIT: 1
 
       - name: Test Docker Compose build (prod target)
         run: |
-          DOCKER_TARGET=prod docker compose build --no-cache
+          DOCKER_TARGET=prod docker compose build
+        env:
+          BUILDKIT_INLINE_CACHE: 1
+          COMPOSE_DOCKER_CLI_BUILD: 1
+          DOCKER_BUILDKIT: 1
 
       - name: Clean up Docker images
+        if: always()
         run: docker system prune -af
 
   build:
