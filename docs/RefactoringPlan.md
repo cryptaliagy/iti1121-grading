@@ -49,6 +49,8 @@ This document outlines a multi-stage plan to refactor the ITI 1121 Grading Tool 
    - [ ] Create sample gradebook CSV files
    - [ ] Create sample test files
    - [ ] Document how to run tests in `CONTRIBUTING.md`
+   - [ ] Add future dependencies to `pyproject.toml` for planning:
+     - [ ] `pluggy>=1.0.0` - Plugin framework (will be used in Stage 6)
 
 4. **Establish Baseline Metrics** (1 day)
    - [ ] Document current performance (time to grade N submissions)
@@ -396,65 +398,100 @@ This document outlines a multi-stage plan to refactor the ITI 1121 Grading Tool 
 
 ---
 
-## Stage 6: Plugin System and Advanced Features (2 weeks)
+## Stage 6: Plugin System with Pluggy (2 weeks)
 
-**Objective**: Add plugin system and enable extensibility
+**Objective**: Add pluggy-based plugin system and enable extensibility
 
-### Week 1: Plugin Infrastructure
-
-#### Tasks
-
-1. **Implement Plugin System** (3 days)
-   - [ ] Create `src/grader/plugins/` module
-   - [ ] Implement `Plugin` protocol
-   - [ ] Implement `PluginRegistry`
-   - [ ] Implement `PluginLoader` for discovering plugins
-   - [ ] Implement `PluginContext` for providing services to plugins
-   - [ ] Support plugin configuration
-   - [ ] Write unit tests
-   - [ ] Write integration tests
-
-2. **Create Example Plugins** (2 days)
-   - [ ] Create `plugins/docker_test_runner/` example
-   - [ ] Create `plugins/junit_parser/` example
-   - [ ] Create `plugins/email_notifier/` example
-   - [ ] Document plugin development
-   - [ ] Create plugin template/cookiecutter
-
-### Week 2: Alternative Implementations
+### Week 1: Pluggy Plugin Infrastructure
 
 #### Tasks
 
-1. **Implement Alternative Test Runners** (2 days)
-   - [ ] Implement `DockerTestRunner` for isolated execution
-   - [ ] Implement `MavenTestRunner` for Maven projects
-   - [ ] Make test runner configurable
-   - [ ] Write tests
+1. **Add Pluggy Dependency and Setup** (1 day)
+   - [ ] Add `pluggy>=1.0.0` to `pyproject.toml` dependencies
+   - [ ] Create `src/grader/plugins/` module structure
+   - [ ] Set up plugin entry point namespace in `pyproject.toml`
+   - [ ] Write initial documentation on plugin architecture
 
-2. **Implement Alternative Gradebook Formats** (2 days)
-   - [ ] Implement `ExcelGradebookRepository`
-   - [ ] Implement `BrightspaceGradebookRepository` with specific format
-   - [ ] Make format selectable via configuration
-   - [ ] Write tests
+2. **Define Hook Specifications** (2 days)
+   - [ ] Create `src/grader/plugins/hookspecs.py`
+   - [ ] Define `GraderHookSpec` class with hook specifications:
+     - [ ] `grader_add_test_runner` - Provide test runner implementations
+     - [ ] `grader_add_grade_calculator` - Provide grade calculator implementations
+     - [ ] `grader_add_submission_processor` - Provide submission processor implementations
+     - [ ] `grader_add_result_publisher` - Provide result publisher implementations
+     - [ ] `grader_parse_test_output` - Parse test output (with `firstresult=True`)
+     - [ ] `grader_preprocess_code` - Preprocess code before compilation
+     - [ ] `grader_configure` - Plugin initialization hook
+   - [ ] Add comprehensive docstrings for each hookspec
+   - [ ] Write unit tests for hook specifications
 
-3. **Documentation and Examples** (1 day)
-   - [ ] Write plugin development guide
-   - [ ] Document configuration options
-   - [ ] Create example configurations
-   - [ ] Update README with new features
+3. **Implement Plugin Manager** (2 days)
+   - [ ] Create `src/grader/plugins/manager.py`
+   - [ ] Implement `get_plugin_manager()` factory function
+   - [ ] Add hookspecs to plugin manager
+   - [ ] Implement entry point discovery via `load_setuptools_entrypoints()`
+   - [ ] Add support for loading plugins from additional directories
+   - [ ] Implement plugin enable/disable configuration
+   - [ ] Write unit tests for plugin manager
+   - [ ] Write integration tests for plugin discovery
+
+### Week 2: Example Plugins and Integration
+
+#### Tasks
+
+1. **Create Example Plugins** (3 days)
+   
+   **Docker Test Runner Plugin**:
+   - [ ] Create `plugins/docker_test_runner/` package
+   - [ ] Implement hookimpl for `grader_add_test_runner`
+   - [ ] Add `DockerTestRunner` implementation
+   - [ ] Configure entry point in plugin's `pyproject.toml`
+   - [ ] Write tests and documentation
+   
+   **JUnit XML Parser Plugin**:
+   - [ ] Create `plugins/junit_parser/` package
+   - [ ] Implement hookimpl for `grader_parse_test_output`
+   - [ ] Parse JUnit XML format test results
+   - [ ] Configure entry point
+   - [ ] Write tests and documentation
+   
+   **Email Notifier Plugin**:
+   - [ ] Create `plugins/email_notifier/` package
+   - [ ] Implement hookimpl for `grader_add_result_publisher`
+   - [ ] Send email notifications to students
+   - [ ] Configure entry point
+   - [ ] Write tests and documentation
+
+2. **Integrate Plugins with Application** (1 day)
+   - [ ] Update `configure_services()` in `application/bootstrap.py`
+   - [ ] Use plugin manager to get implementations from plugins
+   - [ ] Fall back to default implementations when no plugin provides one
+   - [ ] Update `DefaultGradingOrchestrator` to use plugin manager
+   - [ ] Test plugin integration end-to-end
+
+3. **Documentation and Tooling** (1 day)
+   - [ ] Write comprehensive plugin development guide
+   - [ ] Create plugin template/cookiecutter project
+   - [ ] Document all available hook specifications
+   - [ ] Add examples of using `hookimpl` decorators
+   - [ ] Document entry point configuration
+   - [ ] Create troubleshooting guide for plugin issues
+   - [ ] Update main README with plugin information
 
 **Success Criteria**:
-- ✅ Plugin system works correctly
-- ✅ Example plugins demonstrate extensibility
-- ✅ Alternative implementations available
-- ✅ Documentation complete
-- ✅ Tests pass
+- ✅ Pluggy is integrated and plugin manager works correctly
+- ✅ Hook specifications are clear and well-documented
+- ✅ Example plugins demonstrate all major extension points
+- ✅ Plugins can be discovered via entry points
+- ✅ Plugin enable/disable configuration works
+- ✅ Tests pass for plugin system and example plugins
+- ✅ Documentation enables third-party plugin development
 
 **Deliverables**:
-- Plugin system
-- Example plugins
-- Alternative implementations
+- Pluggy-based plugin system
+- Three example plugins (docker, junit, email)
 - Plugin development guide
+- Plugin template project
 - Updated documentation
 
 ---
@@ -648,7 +685,7 @@ After refactoring is complete, these enhancements become feasible:
 | Stage 3: Domain Services | 1.5 weeks | Stage 2 | Domain services |
 | Stage 4: Application Layer | 2 weeks | Stage 3 | Orchestrators, DI container |
 | Stage 5: CLI Refactoring | 1 week | Stage 4 | New CLI implementation |
-| Stage 6: Plugin System | 2 weeks | Stage 5 | Plugin system, examples |
+| Stage 6: Pluggy Plugin System | 2 weeks | Stage 5 | Pluggy integration, 3 example plugins |
 | Stage 7: Cleanup | 1 week | Stage 6 | v2.0.0 release |
 | **Total** | **12.5 weeks** | | **Production-ready v2.0.0** |
 
@@ -662,6 +699,14 @@ This refactoring plan provides a structured, incremental approach to transformin
 - **Value is delivered continuously** with each stage improving the codebase
 - **Backward compatibility is maintained** throughout the process
 - **The system becomes more maintainable** with clear separation of concerns
-- **New features become easier to add** through the plugin system
+- **New features become easier to add** through the pluggy-based plugin system
+- **Third-party extensions are enabled** using the same battle-tested framework that powers pytest
+
+The use of **pluggy** for the plugin system brings significant benefits:
+- Proven reliability from its use in pytest, tox, and devpi
+- Clear plugin API through hook specifications
+- Automatic plugin discovery via entry points
+- Flexible hook calling patterns (firstresult, hookwrapper, etc.)
+- Active community and documentation
 
 The plan is realistic, achievable, and provides a clear path forward while respecting the working functionality of the current system.

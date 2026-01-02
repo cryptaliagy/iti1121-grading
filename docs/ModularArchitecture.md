@@ -2,13 +2,31 @@
 
 ## Vision
 
-Transform the ITI 1121 Grading Tool from a monolithic application into a modular, extensible system with clear separation of concerns, dependency injection, and a plugin architecture. This will enable:
+Transform the ITI 1121 Grading Tool from a monolithic application into a modular, extensible system with clear separation of concerns, dependency injection, and a plugin architecture powered by **pluggy**. This will enable:
 
 - **Easy Testing**: Components can be tested in isolation with mock dependencies
-- **Extensibility**: New grading strategies, submission sources, and output formats without modifying core code
+- **Extensibility**: New grading strategies, submission sources, and output formats without modifying core code through the pluggy plugin system
 - **Maintainability**: Clear boundaries and responsibilities for each component
 - **Reusability**: Components can be reused in different contexts or projects
 - **Configurability**: Support for configuration files in addition to CLI arguments
+- **Plugin Ecosystem**: Third-party developers can create plugins using the same hook system that powers pytest
+
+## Key Technologies
+
+### Pluggy - Plugin Framework
+- **What**: Pluggy is the plugin framework used by pytest, tox, and devpi
+- **Why**: 
+  - Battle-tested and widely adopted in the Python ecosystem
+  - Provides a clean hook specification and implementation model
+  - Built-in support for plugin discovery via entry points
+  - Flexible hook calling with result processing (firstresult, hookwrapper)
+  - Clear separation between plugin API (hookspecs) and implementations (hookimpls)
+- **How**: Hook specifications define extension points; plugins implement hooks to extend functionality
+
+### Dependency Injection
+- Manages object creation and lifetimes
+- Enables testability by allowing mock dependencies
+- Supports singleton, scoped, and transient lifetimes
 
 ## Core Principles
 
@@ -460,66 +478,235 @@ class ResultFormatter(Protocol):
 - `LMSResultPublisher`: Upload to LMS via API
 - `DatabaseResultPublisher`: Store in database
 
-### 5. Plugin System
+### 5. Plugin System (Using Pluggy)
 
 #### 5.1 Plugin Architecture (`plugins/`)
 
-**Responsibility**: Enable third-party extensions
+**Responsibility**: Enable third-party extensions using the pluggy framework
+
+**Why Pluggy?**
+- Battle-tested plugin system used by pytest and tox
+- Built-in hook specification and implementation
+- Plugin discovery and registration
+- Hook call ordering (tryfirst, trylast)
+- Result processing (firstresult, historic hooks)
+- Clean separation between plugin API and implementation
 
 **Components**:
-- `PluginRegistry`: Register and discover plugins
-- `PluginLoader`: Load plugins from directories
-- `PluginHook`: Define extension points
+- `PluginManager`: Pluggy's plugin manager for registration and hook calling
+- Hook specifications: Define extension points for the system
+- Hook implementations: Plugin implementations of the hooks
+- Plugin discovery: Load plugins from entry points or directories
 
-**Interface**:
+**Hook Specifications**:
 ```python
-class Plugin(Protocol):
-    """Base plugin interface"""
-    @property
-    def name(self) -> str: ...
-    
-    @property
-    def version(self) -> str: ...
-    
-    def initialize(self, context: PluginContext) -> None: ...
+# src/grader/plugins/hookspecs.py
 
-class PluginRegistry:
-    """Registry for plugins"""
-    def register(self, plugin: Plugin) -> None: ...
-    def get_plugins(self, plugin_type: type) -> list[Plugin]: ...
-    def get_plugin(self, name: str) -> Optional[Plugin]: ...
+import pluggy
 
-class PluginContext:
-    """Context provided to plugins"""
-    config: GradingConfig
-    services: dict[str, Any]  # Available services
+hookspec = pluggy.HookspecMarker("grader")
+
+class GraderHookSpec:
+    """Hook specifications for the grader plugin system"""
+    
+    @hookspec
+    def grader_add_test_runner(self, config: GradingConfig) -> TestRunner:
+        """
+        Provide a test runner implementation.
+        
+        Args:
+            config: Current grading configuration
+            
+        Returns:
+            TestRunner implementation or None
+        """
+        pass
+    
+    @hookspec
+    def grader_add_grade_calculator(self, config: GradingConfig) -> GradeCalculator:
+        """
+        Provide a grade calculator implementation.
+        
+        Args:
+            config: Current grading configuration
+            
+        Returns:
+            GradeCalculator implementation or None
+        """
+        pass
+    
+    @hookspec
+    def grader_add_submission_processor(self, config: GradingConfig) -> SubmissionProcessor:
+        """
+        Provide a submission processor implementation.
+        
+        Args:
+            config: Current grading configuration
+            
+        Returns:
+            SubmissionProcessor implementation or None
+        """
+        pass
+    
+    @hookspec
+    def grader_add_result_publisher(self, config: GradingConfig) -> ResultPublisher:
+        """
+        Provide a result publisher implementation.
+        
+        Args:
+            config: Current grading configuration
+            
+        Returns:
+            ResultPublisher implementation or None
+        """
+        pass
+    
+    @hookspec(firstresult=True)
+    def grader_parse_test_output(self, output: str, config: GradingConfig) -> list[TestResult]:
+        """
+        Parse test output to extract results.
+        
+        Uses firstresult=True so the first plugin that returns a non-None result wins.
+        
+        Args:
+            output: Test output to parse
+            config: Current grading configuration
+            
+        Returns:
+            List of TestResult objects or None
+        """
+        pass
+    
+    @hookspec
+    def grader_preprocess_code(self, code: str, file_path: Path, config: GradingConfig) -> str:
+        """
+        Preprocess code before compilation.
+        
+        Multiple plugins can process the code in sequence.
+        
+        Args:
+            code: Code content to preprocess
+            file_path: Path to the code file
+            config: Current grading configuration
+            
+        Returns:
+            Preprocessed code
+        """
+        pass
+    
+    @hookspec
+    def grader_configure(self, config: GradingConfig) -> None:
+        """
+        Called when the grader is configured, allowing plugins to set up.
+        
+        Args:
+            config: Current grading configuration
+        """
+        pass
+```
+
+**Plugin Manager Setup**:
+```python
+# src/grader/plugins/manager.py
+
+import pluggy
+from grader.plugins.hookspecs import GraderHookSpec
+
+def get_plugin_manager() -> pluggy.PluginManager:
+    """Create and configure the plugin manager"""
+    pm = pluggy.PluginManager("grader")
+    pm.add_hookspecs(GraderHookSpec)
+    
+    # Load built-in plugins
+    from grader.plugins import builtin
+    pm.register(builtin)
+    
+    # Discover and load external plugins
+    pm.load_setuptools_entrypoints("grader")
+    
+    return pm
 ```
 
 **Plugin Types**:
-- `TestRunnerPlugin`: Custom test runners
-- `GradingStrategyPlugin`: Custom grading strategies
-- `SubmissionSourcePlugin`: Custom submission sources
-- `OutputFormatterPlugin`: Custom output formats
-- `PreprocessorPlugin`: Custom preprocessing rules
+- Test runner plugins via `grader_add_test_runner` hook
+- Grading strategy plugins via `grader_add_grade_calculator` hook
+- Submission source plugins via `grader_add_submission_processor` hook
+- Output formatter plugins via `grader_add_result_publisher` hook
+- Code preprocessor plugins via `grader_preprocess_code` hook
+- Test output parser plugins via `grader_parse_test_output` hook
 
 #### 5.2 Example Plugin
 
+**Plugin Implementation**:
 ```python
-# plugins/docker_test_runner/plugin.py
+# plugins/docker_test_runner/hookimpls.py
 
-class DockerTestRunnerPlugin(Plugin):
+import pluggy
+from grader.domain.models import GradingConfig
+from grader.infrastructure.protocols import TestRunner
+
+hookimpl = pluggy.HookimplMarker("grader")
+
+class DockerTestRunnerPlugin:
     """Plugin for running tests in Docker containers"""
     
-    name = "docker_test_runner"
-    version = "1.0.0"
-    
-    def initialize(self, context: PluginContext) -> None:
-        # Register the Docker test runner
-        runner = DockerTestRunner(
-            image=context.config.get("docker_image", "openjdk:11"),
-            timeout=context.config.get("timeout", 300)
+    @hookimpl
+    def grader_add_test_runner(self, config: GradingConfig) -> TestRunner:
+        """Provide Docker-based test runner"""
+        if config.test_runner != "docker":
+            return None
+            
+        from .docker_runner import DockerTestRunner
+        return DockerTestRunner(
+            image=config.get("docker_image", "openjdk:11"),
+            timeout=config.get("timeout", 300)
         )
-        context.services["test_runner"] = runner
+    
+    @hookimpl
+    def grader_configure(self, config: GradingConfig) -> None:
+        """Configure the Docker plugin"""
+        print(f"Docker test runner plugin initialized")
+```
+
+**Plugin Entry Point** (setup.py or pyproject.toml):
+```toml
+# pyproject.toml for the plugin
+
+[project.entry-points."grader"]
+docker_test_runner = "docker_test_runner.hookimpls:DockerTestRunnerPlugin"
+```
+
+#### 5.3 Using Plugins in Application Code
+
+```python
+# src/grader/application/orchestrator.py
+
+class DefaultGradingOrchestrator:
+    def __init__(self, plugin_manager: pluggy.PluginManager, config: GradingConfig):
+        self.pm = plugin_manager
+        self.config = config
+        
+        # Get test runner from plugins
+        test_runners = self.pm.hook.grader_add_test_runner(config=config)
+        self.test_runner = next((r for r in test_runners if r is not None), None)
+        
+        if not self.test_runner:
+            # Fall back to default
+            self.test_runner = JavaProcessTestRunner()
+    
+    def parse_test_output(self, output: str) -> list[TestResult]:
+        """Parse test output using plugin system"""
+        # Use firstresult - first plugin to return non-None wins
+        result = self.pm.hook.grader_parse_test_output(
+            output=output,
+            config=self.config
+        )
+        
+        if result:
+            return result
+            
+        # Fall back to default parser
+        return RegexTestParser().parse(output)
 ```
 
 ### 6. Dependency Injection Container
@@ -557,24 +744,57 @@ class Scope(Enum):
     TRANSIENT = "transient"  # New instance each time
 ```
 
-#### 6.2 Service Registration
+#### 6.2 Service Registration with Pluggy Integration
 
 ```python
 # application/bootstrap.py
 
+import pluggy
+from grader.plugins.manager import get_plugin_manager
+
 def configure_services(container: ServiceContainer, config: GradingConfig) -> None:
-    """Configure dependency injection container"""
+    """Configure dependency injection container with plugin support"""
     
-    # Infrastructure
+    # Initialize plugin manager
+    plugin_manager = get_plugin_manager()
+    
+    # Notify plugins about configuration
+    plugin_manager.hook.grader_configure(config=config)
+    
+    # Infrastructure - Get from plugins first, then fall back to defaults
+    test_runners = plugin_manager.hook.grader_add_test_runner(config=config)
+    test_runner = next((r for r in test_runners if r is not None), JavaProcessTestRunner())
+    container.register_singleton(TestRunner, test_runner)
+    
+    submission_processors = plugin_manager.hook.grader_add_submission_processor(config=config)
+    submission_processor = next((p for p in submission_processors if p is not None), ZipSubmissionProcessor())
+    container.register(SubmissionProcessor, submission_processor, Scope.TRANSIENT)
+    
     container.register_singleton(FileSystem, LocalFileSystem())
-    container.register(SubmissionProcessor, ZipSubmissionProcessor, Scope.TRANSIENT)
-    container.register(TestRunner, JavaProcessTestRunner, Scope.TRANSIENT)
     container.register(GradebookRepository, CSVGradebookRepository, Scope.SINGLETON)
     
-    # Domain services
+    # Domain services - Can be provided by plugins
+    grade_calculators = plugin_manager.hook.grader_add_grade_calculator(config=config)
+    grade_calculator = next((c for c in grade_calculators if c is not None), SimpleGradeCalculator())
+    container.register_singleton(GradeCalculator, grade_calculator)
+    
     container.register(StudentMatcher, FuzzyStudentMatcher, Scope.SINGLETON)
-    container.register(GradeCalculator, SimpleGradeCalculator, Scope.SINGLETON)
     container.register(TestOutputParser, RegexTestParser, Scope.SINGLETON)
+    
+    # Result publishers - Multiple can be registered
+    result_publishers = plugin_manager.hook.grader_add_result_publisher(config=config)
+    active_publishers = [p for p in result_publishers if p is not None]
+    if not active_publishers:
+        active_publishers = [CSVResultPublisher()]
+    
+    # Use composite pattern if multiple publishers
+    if len(active_publishers) == 1:
+        container.register_singleton(ResultPublisher, active_publishers[0])
+    else:
+        container.register_singleton(ResultPublisher, CompositeResultPublisher(active_publishers))
+    
+    # Store plugin manager in container for use by application services
+    container.register_singleton(pluggy.PluginManager, plugin_manager)
     
     # Application services
     container.register(
@@ -583,15 +803,11 @@ def configure_services(container: ServiceContainer, config: GradingConfig) -> No
             submission_processor=container.resolve(SubmissionProcessor),
             test_runner=container.resolve(TestRunner),
             grade_calculator=container.resolve(GradeCalculator),
-            result_publisher=container.resolve(ResultPublisher)
+            result_publisher=container.resolve(ResultPublisher),
+            plugin_manager=container.resolve(pluggy.PluginManager)
         ),
         Scope.TRANSIENT
     )
-    
-    # Load plugins
-    plugin_loader = PluginLoader(config.plugin_directory)
-    for plugin in plugin_loader.load_plugins():
-        plugin.initialize(PluginContext(config, container))
 ```
 
 ## Configuration Strategy
@@ -638,12 +854,32 @@ output:
   include_details: true
   failure_as_null: false
   
-# Plugins
+# Plugins (using pluggy)
 plugins:
-  directory: ./plugins
+  # Plugins are discovered via entry points automatically
+  # Additional plugins can be loaded from directories
+  search_paths:
+    - ./plugins
+    - ~/.grader/plugins
+  
+  # Control which discovered plugins are active
   enabled:
     - docker_test_runner
     - email_notifier
+  
+  disabled:
+    - legacy_parser
+  
+  # Plugin-specific configuration
+  docker_test_runner:
+    image: openjdk:17
+    network: bridge
+    memory_limit: 512m
+  
+  email_notifier:
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    from_address: grader@example.com
     
 # Logging
 logging:
