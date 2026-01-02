@@ -17,6 +17,11 @@ app = typer.Typer(help="CLI for compiling and running Java test files")
 # Constants
 SUCCESS_EXIT_CODE = 0
 ERROR_EXIT_CODE = 1
+JAVA_FILE_EXTENSION = ".java"
+JAVA_COMPILER_CMD = "javac"
+JAVA_RUNTIME_CMD = "java"
+TEST_UTILS_FILE = "TestUtils.java"
+CLASSPATH_SEPARATOR = ":"
 
 
 class FileOperationError(Exception):
@@ -96,14 +101,14 @@ def find_test_files(test_dir: Path, prefix: str, writer: Writer) -> list[Path]:
             f"Test directory {test_dir} does not exist or is not a directory."
         )
 
-    test_files = list(test_dir.glob(f"{prefix}*.java"))
+    test_files = list(test_dir.glob(f"{prefix}*{JAVA_FILE_EXTENSION}"))
 
     if not test_files:
         raise FileOperationError(
             f"No test files found with prefix '{prefix}' in {test_dir}"
         )
 
-    main_test_file = test_dir / f"{prefix}.java"
+    main_test_file = test_dir / f"{prefix}{JAVA_FILE_EXTENSION}"
 
     if not main_test_file.exists():
         raise FileOperationError(
@@ -163,9 +168,9 @@ def copy_test_files(test_files: list[Path], target_dir: Path, writer: Writer) ->
 
     # Also copy TestUtils.java if it exists in the test directory
     test_dir = test_files[0].parent
-    utils_file = test_dir / "TestUtils.java"
+    utils_file = test_dir / TEST_UTILS_FILE
     if utils_file.exists():
-        target_utils_file = target_dir / "TestUtils.java"
+        target_utils_file = target_dir / TEST_UTILS_FILE
         safe_copy_file(utils_file, target_utils_file, writer)
 
 
@@ -185,10 +190,10 @@ def build_compile_command(
     if classpath:
         if "." not in classpath:
             classpath.append(".")
-        cp_string = ":".join(classpath)
-        return ["javac", "-cp", cp_string, f"{main_test_file}.java"]
+        cp_string = CLASSPATH_SEPARATOR.join(classpath)
+        return [JAVA_COMPILER_CMD, "-cp", cp_string, f"{main_test_file}{JAVA_FILE_EXTENSION}"]
     else:
-        return ["javac", f"{main_test_file}.java"]
+        return [JAVA_COMPILER_CMD, f"{main_test_file}{JAVA_FILE_EXTENSION}"]
 
 
 def build_run_command(
@@ -207,10 +212,10 @@ def build_run_command(
     if classpath:
         if "." not in classpath:
             classpath.append(".")
-        cp_string = ":".join(classpath)
-        return ["java", "-cp", cp_string, main_test_file]
+        cp_string = CLASSPATH_SEPARATOR.join(classpath)
+        return [JAVA_RUNTIME_CMD, "-cp", cp_string, main_test_file]
     else:
-        return ["java", main_test_file]
+        return [JAVA_RUNTIME_CMD, main_test_file]
 
 
 def compile_test(
@@ -488,7 +493,7 @@ def collect_code_files(code_dir: Path, writer: Writer) -> list[Path]:
     if not code_dir.exists() or not code_dir.is_dir():
         raise FileOperationError(f"Code directory {code_dir} does not exist.")
 
-    java_files = list(code_dir.glob("*.java"))
+    java_files = list(code_dir.glob(f"*{JAVA_FILE_EXTENSION}"))
     if not java_files:
         raise FileOperationError(f"No Java files found in {code_dir}")
 
