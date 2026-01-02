@@ -29,13 +29,16 @@ class TestBulkGradingWorkflow:
 
         # Create submissions zip
         submissions_zip = tmp_path / "submissions.zip"
+        
+        # Read student code once
+        student_code = (fixture_dir / "submissions" / "StudentCode.java").read_text()
+        
         with zipfile.ZipFile(submissions_zip, "w") as zf:
             # Create submission folders
             folder1 = "152711-351765 - Alice Smith - May 18, 2025 1224 PM"
             folder2 = "123456-789012 - Bob Jones - June 15, 2025 930 AM"
 
-            # Add student code
-            student_code = (fixture_dir / "submissions" / "StudentCode.java").read_text()
+            # Add student code to both folders
             zf.writestr(f"{folder1}/StudentCode.java", student_code)
             zf.writestr(f"{folder2}/StudentCode.java", student_code)
 
@@ -141,6 +144,11 @@ class TestEndToEndBulkGrading:
         """Test bulk grading workflow components working together."""
         fixture_dir = Path(__file__).parent.parent / "fixtures"
 
+        # Read student code once
+        student_code = (
+            fixture_dir / "submissions" / "StudentCode.java"
+        ).read_text()
+
         # Create submissions zip with multiple students
         submissions_zip = tmp_path / "submissions.zip"
         with zipfile.ZipFile(submissions_zip, "w") as zf:
@@ -148,10 +156,6 @@ class TestEndToEndBulkGrading:
                 "152711-351765 - Alice Smith - May 18, 2025 1224 PM",
                 "123456-789012 - Bob Jones - June 15, 2025 930 AM",
             ]
-
-            student_code = (
-                fixture_dir / "submissions" / "StudentCode.java"
-            ).read_text()
 
             for folder in folders:
                 zf.writestr(f"{folder}/StudentCode.java", student_code)
@@ -184,7 +188,3 @@ class TestEndToEndBulkGrading:
         )
         assert grading_dir.exists()
         assert (grading_dir / "StudentCode.java").exists()
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

@@ -406,7 +406,3 @@ class TestFileOperationError:
         """Test exception can be raised and caught."""
         with pytest.raises(FileOperationError, match="Test error"):
             raise FileOperationError("Test error")
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

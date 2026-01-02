@@ -13,6 +13,10 @@ import sys
 import time
 from pathlib import Path
 
+# Configuration constants
+SOURCE_DIR = "src/grader"
+TEST_DIR = "test"
+
 
 def run_command(cmd: list[str], description: str) -> tuple[str, float]:
     """Run a command and return output and execution time."""
@@ -76,7 +80,7 @@ def get_test_coverage():
     print("=" * 60)
 
     output, elapsed = run_command(
-        [sys.executable, "-m", "pytest", "test/", "--cov=src/grader", "--cov-report=term"],
+        [sys.executable, "-m", "pytest", f"{TEST_DIR}/", f"--cov={SOURCE_DIR}", "--cov-report=term"],
         "Test suite with coverage",
     )
 
@@ -117,7 +121,7 @@ def get_linter_metrics():
 
     # Run mypy
     output, elapsed = run_command(
-        [sys.executable, "-m", "mypy", "src/"],
+        [sys.executable, "-m", "mypy", f"{SOURCE_DIR.split('/')[0]}/"],
         "Mypy type checker",
     )
     mypy_errors = len([line for line in output.splitlines() if "error:" in line])
@@ -126,7 +130,7 @@ def get_linter_metrics():
 
     # Run bandit
     output, elapsed = run_command(
-        [sys.executable, "-m", "bandit", "-c", "pyproject.toml", "-r", "src/", "-q"],
+        [sys.executable, "-m", "bandit", "-c", "pyproject.toml", "-r", f"{SOURCE_DIR.split('/')[0]}/", "-q"],
         "Bandit security scanner",
     )
     bandit_issues = len([line for line in output.splitlines() if "Issue:" in line])

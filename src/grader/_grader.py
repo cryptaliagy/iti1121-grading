@@ -22,6 +22,7 @@ JAVA_COMPILER_CMD = "javac"
 JAVA_RUNTIME_CMD = "java"
 TEST_UTILS_FILE = "TestUtils.java"
 CLASSPATH_SEPARATOR = ":"
+PACKAGE_DECLARATION_PATTERN = r"^\s*package\s+[\w.]+;\s*\n?"
 
 
 class FileOperationError(Exception):
@@ -469,7 +470,7 @@ def preprocess_codefile(
     # Remove package declaration if specified
     if options.remove_package_declaration:
         content = re.sub(
-            r"^\s*package\s+[\w.]+;\s*\n?", "", content, flags=re.MULTILINE
+            PACKAGE_DECLARATION_PATTERN, "", content, flags=re.MULTILINE
         )
 
     # Write the modified content back to the file

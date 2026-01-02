@@ -33,8 +33,9 @@ class TestSingleGradingWorkflow:
         test_dir.mkdir()
 
         # Copy test files
-        shutil.copy(fixture_dir / "TestSimple.java", test_dir / "TestSimple.java")
-        shutil.copy(fixture_dir / "TestUtils.java", test_dir / "TestUtils.java")
+        test_files = ["TestSimple.java", "TestUtils.java"]
+        for test_file in test_files:
+            shutil.copy(fixture_dir / test_file, test_dir / test_file)
 
         # Create code directory
         code_dir = tmp_path / "code"
@@ -170,7 +171,3 @@ class TestEndToEndSingleGrading:
         assert total_points == 15.0
         assert possible_points == 15.0
         assert (total_points / possible_points) == 1.0  # 100% grade
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
