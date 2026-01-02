@@ -463,7 +463,9 @@ def preprocess_codefile(
 
     # Remove package declaration if specified
     if options.remove_package_declaration:
-        content = re.sub(r"^\s*package\s+\w+;\s*", "", content, flags=re.MULTILINE)
+        content = re.sub(
+            r"^\s*package\s+[\w.]+;\s*\n?", "", content, flags=re.MULTILINE
+        )
 
     # Write the modified content back to the file
     with code_file.open("w") as f:
