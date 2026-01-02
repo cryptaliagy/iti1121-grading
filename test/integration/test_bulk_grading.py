@@ -29,10 +29,10 @@ class TestBulkGradingWorkflow:
 
         # Create submissions zip
         submissions_zip = tmp_path / "submissions.zip"
-        
+
         # Read student code once
         student_code = (fixture_dir / "submissions" / "StudentCode.java").read_text()
-        
+
         with zipfile.ZipFile(submissions_zip, "w") as zf:
             # Create submission folders
             folder1 = "152711-351765 - Alice Smith - May 18, 2025 1224 PM"
@@ -84,9 +84,7 @@ class TestBulkGradingWorkflow:
         temp_dir = test_env["tmp_path"] / "temp"
         temp_dir.mkdir()
 
-        submissions_dir = extract_submissions(
-            test_env["submissions_zip"], temp_dir
-        )
+        submissions_dir = extract_submissions(test_env["submissions_zip"], temp_dir)
 
         assert submissions_dir.exists()
         # Should have extracted 2 submission folders
@@ -99,17 +97,13 @@ class TestBulkGradingWorkflow:
         temp_dir = test_env["tmp_path"] / "temp"
         temp_dir.mkdir()
 
-        submissions_dir = extract_submissions(
-            test_env["submissions_zip"], temp_dir
-        )
+        submissions_dir = extract_submissions(test_env["submissions_zip"], temp_dir)
 
         # Get first submission folder
         submission_folder = list(submissions_dir.iterdir())[0]
 
         writer = Writer(verbose=False)
-        grading_dir = prepare_grading_directory(
-            submission_folder, temp_dir, writer
-        )
+        grading_dir = prepare_grading_directory(submission_folder, temp_dir, writer)
 
         assert grading_dir.exists()
         assert (grading_dir / "StudentCode.java").exists()
@@ -120,9 +114,7 @@ class TestBulkGradingWorkflow:
         temp_dir = test_env["tmp_path"] / "temp"
         temp_dir.mkdir()
 
-        submissions_dir = extract_submissions(
-            test_env["submissions_zip"], temp_dir
-        )
+        submissions_dir = extract_submissions(test_env["submissions_zip"], temp_dir)
 
         # Load grading list
         grading_df = load_grading_list(test_env["grading_list"])
@@ -145,9 +137,7 @@ class TestEndToEndBulkGrading:
         fixture_dir = Path(__file__).parent.parent / "fixtures"
 
         # Read student code once
-        student_code = (
-            fixture_dir / "submissions" / "StudentCode.java"
-        ).read_text()
+        student_code = (fixture_dir / "submissions" / "StudentCode.java").read_text()
 
         # Create submissions zip with multiple students
         submissions_zip = tmp_path / "submissions.zip"
@@ -183,8 +173,6 @@ class TestEndToEndBulkGrading:
 
         # 4. Prepare grading directory for one student
         first_submission = list(latest_submissions.values())[0]
-        grading_dir = prepare_grading_directory(
-            first_submission[1], temp_dir, writer
-        )
+        grading_dir = prepare_grading_directory(first_submission[1], temp_dir, writer)
         assert grading_dir.exists()
         assert (grading_dir / "StudentCode.java").exists()

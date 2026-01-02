@@ -192,7 +192,12 @@ def build_compile_command(
         if "." not in classpath:
             classpath.append(".")
         cp_string = CLASSPATH_SEPARATOR.join(classpath)
-        return [JAVA_COMPILER_CMD, "-cp", cp_string, f"{main_test_file}{JAVA_FILE_EXTENSION}"]
+        return [
+            JAVA_COMPILER_CMD,
+            "-cp",
+            cp_string,
+            f"{main_test_file}{JAVA_FILE_EXTENSION}",
+        ]
     else:
         return [JAVA_COMPILER_CMD, f"{main_test_file}{JAVA_FILE_EXTENSION}"]
 
@@ -469,9 +474,7 @@ def preprocess_codefile(
 
     # Remove package declaration if specified
     if options.remove_package_declaration:
-        content = re.sub(
-            PACKAGE_DECLARATION_PATTERN, "", content, flags=re.MULTILINE
-        )
+        content = re.sub(PACKAGE_DECLARATION_PATTERN, "", content, flags=re.MULTILINE)
 
     # Write the modified content back to the file
     with code_file.open("w") as f:

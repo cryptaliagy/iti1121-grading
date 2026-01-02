@@ -80,7 +80,14 @@ def get_test_coverage():
     print("=" * 60)
 
     output, elapsed = run_command(
-        [sys.executable, "-m", "pytest", f"{TEST_DIR}/", f"--cov={SOURCE_DIR}", "--cov-report=term"],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            f"{TEST_DIR}/",
+            f"--cov={SOURCE_DIR}",
+            "--cov-report=term",
+        ],
         "Test suite with coverage",
     )
 
@@ -115,7 +122,13 @@ def get_linter_metrics():
         [sys.executable, "-m", "ruff", "check", "."],
         "Ruff linter",
     )
-    ruff_issues = len([line for line in output.splitlines() if line.strip() and not line.startswith("All")])
+    ruff_issues = len(
+        [
+            line
+            for line in output.splitlines()
+            if line.strip() and not line.startswith("All")
+        ]
+    )
     print(f"  ✓ Ruff: {ruff_issues} issues ({elapsed:.2f}s)")
     metrics["ruff_issues"] = ruff_issues
 
@@ -130,7 +143,16 @@ def get_linter_metrics():
 
     # Run bandit
     output, elapsed = run_command(
-        [sys.executable, "-m", "bandit", "-c", "pyproject.toml", "-r", f"{SOURCE_DIR.split('/')[0]}/", "-q"],
+        [
+            sys.executable,
+            "-m",
+            "bandit",
+            "-c",
+            "pyproject.toml",
+            "-r",
+            f"{SOURCE_DIR.split('/')[0]}/",
+            "-q",
+        ],
         "Bandit security scanner",
     )
     bandit_issues = len([line for line in output.splitlines() if "Issue:" in line])
@@ -164,7 +186,9 @@ def main():
     print(f"  Bandit issues: {all_metrics['quality']['bandit_issues']}")
     print(f"  Source files: {all_metrics['code']['source_files']}")
     print(f"  Test files: {all_metrics['code']['test_files']}")
-    print(f"  Test/Source ratio: {all_metrics['code']['test_lines'] / all_metrics['code']['source_lines']:.2f}")
+    print(
+        f"  Test/Source ratio: {all_metrics['code']['test_lines'] / all_metrics['code']['source_lines']:.2f}"
+    )
 
     print("\n✅ Baseline metrics collected!")
     print("=" * 60)
