@@ -1,6 +1,6 @@
 """Domain models for the grading system."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 

@@ -3,11 +3,10 @@
 import os
 import subprocess  # nosec: B404
 import time
-from pathlib import Path
 
 from grader._grader import Writer, build_compile_command, build_run_command
 from grader.domain.models import TestRunOutput
-from grader.infrastructure.protocols import TestRunner, TestRunnerConfig
+from grader.infrastructure.protocols import TestRunnerConfig
 
 
 class LegacyTestRunnerAdapter:
