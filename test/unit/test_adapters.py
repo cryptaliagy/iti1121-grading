@@ -115,14 +115,13 @@ class TestLegacyCodePreprocessorAdapter:
 
         code_file = tmp_path / "Test.java"
         code_file.write_text(
-            """package com.example;
-
-public class Test {
-    public static void main(String[] args) {
-        System.out.println("Hello");
-    }
-}
-"""
+            "package com.example;\n"
+            "\n"
+            "public class Test {\n"
+            "    public static void main(String[] args) {\n"
+            "        System.out.println(\"Hello\");\n"
+            "    }\n"
+            "}\n"
         )
 
         adapter.preprocess(code_file)
@@ -140,11 +139,12 @@ public class Test {
         adapter = LegacyCodePreprocessorAdapter(writer, options)
 
         code_file = tmp_path / "Test.java"
-        original_content = """package com.example;
-
-public class Test {
-}
-"""
+        original_content = (
+            "package com.example;\n"
+            "\n"
+            "public class Test {\n"
+            "}\n"
+        )
         code_file.write_text(original_content)
 
         adapter.preprocess(code_file)
@@ -164,12 +164,11 @@ class TestLegacyTestRunnerAdapter:
         # Create a simple Java file
         java_file = tmp_path / "HelloWorld.java"
         java_file.write_text(
-            """public class HelloWorld {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-    }
-}
-"""
+            "public class HelloWorld {\n"
+            "    public static void main(String[] args) {\n"
+            "        System.out.println(\"Hello, World!\");\n"
+            "    }\n"
+            "}\n"
         )
 
         config = TestRunnerConfig(
@@ -190,11 +189,10 @@ class TestLegacyTestRunnerAdapter:
         # Create a Java file with syntax error
         java_file = tmp_path / "BadCode.java"
         java_file.write_text(
-            """public class BadCode {
-    public static void main(String[] args) {
-        // Missing closing brace
-}
-"""
+            "public class BadCode {\n"
+            "    public static void main(String[] args) {\n"
+            "        // Missing closing brace\n"
+            "}\n"
         )
 
         config = TestRunnerConfig(
@@ -214,12 +212,11 @@ class TestLegacyTestRunnerAdapter:
         # Create and compile a simple Java file
         java_file = tmp_path / "HelloWorld.java"
         java_file.write_text(
-            """public class HelloWorld {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-    }
-}
-"""
+            "public class HelloWorld {\n"
+            "    public static void main(String[] args) {\n"
+            "        System.out.println(\"Hello, World!\");\n"
+            "    }\n"
+            "}\n"
         )
 
         config = TestRunnerConfig(
@@ -246,12 +243,11 @@ class TestLegacyTestRunnerAdapter:
         # Create a Java file that writes to stderr
         java_file = tmp_path / "StderrTest.java"
         java_file.write_text(
-            """public class StderrTest {
-    public static void main(String[] args) {
-        System.err.println("Error message");
-    }
-}
-"""
+            "public class StderrTest {\n"
+            "    public static void main(String[] args) {\n"
+            "        System.err.println(\"Error message\");\n"
+            "    }\n"
+            "}\n"
         )
 
         config = TestRunnerConfig(
