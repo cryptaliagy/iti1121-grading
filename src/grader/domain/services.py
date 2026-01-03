@@ -255,7 +255,9 @@ class WeightedGradingStrategy:
     """
 
     def __init__(
-        self, category_weights: dict[str, float], test_categories: dict[str, str] | None = None
+        self,
+        category_weights: dict[str, float],
+        test_categories: dict[str, str] | None = None,
     ):
         """
         Initialize weighted grading strategy.
@@ -266,13 +268,11 @@ class WeightedGradingStrategy:
         """
         self.category_weights = category_weights
         self.test_categories = test_categories or {}
-        
+
         # Validate weights sum to 1.0 (with small tolerance for floating point)
         total_weight = sum(category_weights.values())
         if abs(total_weight - 1.0) > 0.001:
-            raise ValueError(
-                f"Category weights must sum to 1.0, got {total_weight}"
-            )
+            raise ValueError(f"Category weights must sum to 1.0, got {total_weight}")
 
     def apply_strategy(self, points_earned: float, points_possible: float) -> float:
         """
@@ -308,11 +308,11 @@ class WeightedGradingStrategy:
             return 0.0
 
         weighted_score = 0.0
-        
+
         for test_name, (earned, possible) in test_results.items():
             category = self.test_categories.get(test_name, "default")
             weight = self.category_weights.get(category, 0.0)
-            
+
             if possible > 0:
                 test_percentage = earned / possible
                 weighted_score += test_percentage * weight
@@ -395,7 +395,7 @@ class DropLowestGradingStrategy:
         test_percentages.sort(key=lambda x: x[0])
 
         # Drop the lowest N scores
-        kept_tests = test_percentages[self.drop_count:]
+        kept_tests = test_percentages[self.drop_count :]
 
         # Calculate final grade from kept tests
         if not kept_tests:
