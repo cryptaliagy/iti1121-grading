@@ -82,10 +82,12 @@ class TestStudentMatcherIntegrationWithBulkGrader:
         ]
 
         # Typical production setup: exact first, then fuzzy
-        matcher = CompositeStudentMatcher([
-            ExactStudentMatcher(),
-            FuzzyStudentMatcher(),
-        ])
+        matcher = CompositeStudentMatcher(
+            [
+                ExactStudentMatcher(),
+                FuzzyStudentMatcher(),
+            ]
+        )
 
         # Exact match (uses fast ExactStudentMatcher)
         result = matcher.find_match("Charlie Wilson", students)
@@ -267,11 +269,13 @@ class TestMatcherPerformance:
                 return candidates[0] if candidates else None
 
         # Create composite with multiple counting matchers
-        matcher = CompositeStudentMatcher([
-            CountingMatcher(),
-            CountingMatcher(),
-            CountingMatcher(),
-        ])
+        matcher = CompositeStudentMatcher(
+            [
+                CountingMatcher(),
+                CountingMatcher(),
+                CountingMatcher(),
+            ]
+        )
 
         matcher.find_match("John Doe", students)
 

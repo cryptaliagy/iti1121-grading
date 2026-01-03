@@ -77,7 +77,7 @@ class TestExactStudentMatcher:
         ]
 
         matcher = ExactStudentMatcher()
-        
+
         # Match with accents
         result = matcher.find_match("José María", students)
         assert result is not None

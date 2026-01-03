@@ -184,12 +184,12 @@ def demo_performance_comparison():
     fuzzy_matcher.find_match("First50 Last50", students, threshold=70)
     fuzzy_fuzzy_time = time.time() - start
 
-    print(f"Dataset: 1000 students")
-    print(f"ExactMatcher (exact match):     {exact_time*1000:.2f}ms")
-    print(f"FuzzyMatcher (exact path):      {fuzzy_exact_time*1000:.2f}ms")
-    print(f"FuzzyMatcher (fuzzy matching):  {fuzzy_fuzzy_time*1000:.2f}ms")
+    print("Dataset: 1000 students")
+    print(f"ExactMatcher (exact match):     {exact_time * 1000:.2f}ms")
+    print(f"FuzzyMatcher (exact path):      {fuzzy_exact_time * 1000:.2f}ms")
+    print(f"FuzzyMatcher (fuzzy matching):  {fuzzy_fuzzy_time * 1000:.2f}ms")
     print(
-        f"\nNote: FuzzyMatcher has fast path for exact matches, but is slower for fuzzy matching"
+        "\nNote: FuzzyMatcher has fast path for exact matches, but is slower for fuzzy matching"
     )
 
 
