@@ -14,6 +14,12 @@ from .protocols import (
     StudentMatcher,
     TestOutputParser,
 )
+from .services import (
+    CompositeStudentMatcher,
+    ExactStudentMatcher,
+    FuzzyStudentMatcher,
+    normalize_name,
+)
 
 __all__ = [
     # Models
@@ -28,4 +34,9 @@ __all__ = [
     "GradingStrategy",
     "StudentMatcher",
     "TestOutputParser",
+    # Services
+    "CompositeStudentMatcher",
+    "ExactStudentMatcher",
+    "FuzzyStudentMatcher",
+    "normalize_name",
 ]
