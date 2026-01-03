@@ -378,6 +378,11 @@ class TestSubmissionParsing:
         name, timestamp = parse_submission_folder_name(folder_name)
         assert timestamp == datetime(2025, 5, 1, 1, 0)
 
+        # 3-digit time edge case - 119 should be 1:19, not 11:9
+        folder_name = "152711-351765 - Test Student - May 1, 2025 119 AM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert timestamp == datetime(2025, 5, 1, 1, 19)
+
         folder_name = "152711-351765 - Test Student - May 1, 2025 945 AM"
         name, timestamp = parse_submission_folder_name(folder_name)
         assert timestamp == datetime(2025, 5, 1, 9, 45)

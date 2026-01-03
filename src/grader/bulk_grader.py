@@ -138,11 +138,14 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
         hour = int(time_str)
         minute = 0
     elif len(time_str) == 3:
-        # Format like "130" -> "1:30"
+        # Format like "130" -> "1:30" or "945" -> "9:45"
+        # First digit is hour (1-9), last two digits are minutes (00-59)
+        # Examples: 100->1:00, 119->1:19, 945->9:45
         hour = int(time_str[0])
         minute = int(time_str[1:3])
     elif len(time_str) == 4:
         # Format like "1224" -> "12:24"
+        # First two digits are hour (10-12), last two are minutes (00-59)
         hour = int(time_str[0:2])
         minute = int(time_str[2:4])
     else:
