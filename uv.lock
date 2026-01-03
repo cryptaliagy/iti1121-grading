@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -136,6 +136,7 @@ source = { editable = "." }
 dependencies = [
     { name = "pandas" },
     { name = "pandas-stubs" },
+    { name = "pluggy" },
     { name = "rich" },
     { name = "thefuzz" },
     { name = "typer" },
@@ -155,6 +156,7 @@ dev = [
 requires-dist = [
     { name = "pandas", specifier = ">=2.0.0,<3.0.0" },
     { name = "pandas-stubs", specifier = ">=2.2.3.250527,<3.0.0.0" },
+    { name = "pluggy", specifier = ">=1.0.0,<2.0.0" },
     { name = "rich", specifier = ">=13.0.0,<14.0.0" },
     { name = "thefuzz", specifier = ">=0.22.1,<0.23.0" },
     { name = "typer", specifier = ">=0.16.0,<0.17.0" },
