@@ -4,6 +4,246 @@
 
 The domain layer contains the core business logic and models for the grading system. This layer is independent of infrastructure concerns and provides pure domain services and models.
 
+## Submission Folder Name Parsing
+
+The submission folder name parser extracts student names and submission timestamps from LMS-exported folder names. This is a critical component for identifying and processing student submissions in bulk grading operations.
+
+### Folder Name Format
+
+The expected format follows the pattern exported by common Learning Management Systems (LMS):
+
+```
+<student-id>-<submission-id> - <student-name> - <month> <day>, <year> <time> <AM/PM>
+```
+
+**Examples:**
+```
+152711-351765 - John Doe - May 18, 2025 1224 PM
+123456-789012 - Mary-Jane O'Connor - June 15, 2025 930 AM
+1-2 - José María - Sept 1, 2025 100 AM
+```
+
+### Supported Features
+
+#### Time Formats
+
+The parser supports flexible time formats to handle various LMS export variations:
+
+- **1-digit time**: `1 AM` → 01:00 (hour only, minute defaults to 00)
+- **2-digit time**: `12 PM` → 12:00 (hour only, minute defaults to 00)
+- **3-digit time**: `130 PM` → 13:30 (first digit is hour, last two are minutes)
+- **4-digit time**: `1224 PM` → 12:24 (first two digits are hour, last two are minutes)
+
+**Design Rationale**: Different LMS platforms and export formats may omit leading zeros or format times differently. Supporting 1-4 digit formats ensures compatibility across systems.
+
+#### Month Names
+
+Both full month names and standard abbreviations are supported:
+
+**Full names**: January, February, March, April, May, June, July, August, September, October, November, December
+
+**Abbreviations**: Jan, Feb, Mar, Apr, Jun, Jul, Aug, Sep, **Sept**, Oct, Nov, Dec
+
+**Note**: The parser includes both `Sep` and `Sept` for September to handle common variations in LMS exports.
+
+#### Student Name Support
+
+The parser handles various name formats commonly seen in academic settings:
+
+- **Names with accents**: José María, François Côté
+- **Hyphenated names**: Mary-Jane, O'Connor-Smith
+- **Multiple-part names**: Van Der Berg, de la Cruz
+- **Names with internal dashes**: Can extract "Name With - Dash" correctly
+- **Long names**: Handles names with many words
+- **Extra whitespace**: Trims leading/trailing spaces automatically
+
+**Design Rationale**: Academic institutions serve diverse international populations. The parser must handle various naming conventions without data loss or corruption.
+
+### Validation
+
+The parser performs comprehensive validation to catch data quality issues early:
+
+#### Time Validation
+
+- **Hour range**: Must be 1-12 (12-hour format)
+- **Minute range**: Must be 0-59
+- **AM/PM required**: Must specify either AM or PM
+
+**Invalid examples**:
+```python
+"... - May 1, 2025 0 AM"      # Hour 0 invalid (use 12 AM for midnight)
+"... - May 1, 2025 1300 PM"   # Hour 13 invalid in 12-hour format
+"... - May 1, 2025 1260 PM"   # Minute 60 invalid
+```
+
+#### Date Validation
+
+- **Month names**: Must be valid full name or abbreviation
+- **Day range**: Must be valid for the given month/year
+- **Year**: Any 4-digit year (validated by Python's datetime)
+
+**Invalid examples**:
+```python
+"... - InvalidMonth 1, 2025 ..."  # Unknown month name
+"... - May 32, 2025 ..."          # Day 32 doesn't exist
+"... - Feb 30, 2025 ..."          # Feb 30 doesn't exist
+```
+
+#### Format Validation
+
+The entire folder name must match the expected pattern:
+
+```python
+"Invalid folder name"                    # No structure
+"... - 18 May, 2025 ..."                 # Day-Month order not supported
+"... - May 1, 2025 1224"                 # Missing AM/PM
+```
+
+### Error Messages
+
+The parser provides detailed error messages to help diagnose issues:
+
+- **Format mismatch**: Shows expected format pattern
+- **Invalid hour/minute**: Specifies valid range
+- **Unknown month**: Lists expected values
+- **Invalid date**: Shows which date component is invalid
+
+**Examples**:
+```python
+ValueError: Folder name 'Invalid' doesn't match expected format. 
+Expected: '<id>-<id> - <name> - <month> <day>, <year> <time> <AM/PM>'
+
+ValueError: Invalid hour: 13. Hour must be between 1 and 12 in 12-hour format.
+
+ValueError: Unknown month: InvalidMonth. Expected full month name or standard abbreviation.
+
+ValueError: Invalid date/time values: year=2025, month=5, day=32, hour=12, minute=24. 
+Error: day is out of range for month
+```
+
+### Usage Examples
+
+```python
+from grader.bulk_grader import parse_submission_folder_name
+
+# Standard format
+name, timestamp = parse_submission_folder_name(
+    "152711-351765 - John Doe - May 18, 2025 1224 PM"
+)
+# Returns: ("John Doe", datetime(2025, 5, 18, 12, 24))
+
+# Handle various time formats
+name, timestamp = parse_submission_folder_name(
+    "123-456 - Jane Smith - June 1, 2025 1 AM"
+)
+# Returns: ("Jane Smith", datetime(2025, 6, 1, 1, 0))
+
+# International names
+name, timestamp = parse_submission_folder_name(
+    "789-012 - José María - Sept 15, 2025 945 AM"
+)
+# Returns: ("José María", datetime(2025, 9, 15, 9, 45))
+
+# Error handling
+try:
+    name, timestamp = parse_submission_folder_name("Invalid folder")
+except ValueError as e:
+    print(f"Parse error: {e}")
+```
+
+### Integration with Bulk Grader
+
+The parser is used in `find_latest_submissions()` to process all submission folders:
+
+1. **Parse folder names**: Extract student name and timestamp from each folder
+2. **Group by student**: Collect all submissions for each student (normalized name)
+3. **Select latest**: Choose the most recent submission based on timestamp
+4. **Match to records**: Fuzzy match extracted names to gradebook records
+
+### Design Decisions
+
+#### Why Not European Date Format (DD/MM/YYYY)?
+
+The parser expects month before day (MM/DD/YYYY) as this matches the standard export format from major LMS platforms used in North American universities (Brightspace, Canvas, Blackboard).
+
+**Rationale**: The format is dictated by the LMS export, not our choice. Supporting multiple date formats would risk ambiguity (is "01/02/2025" January 2 or February 1?).
+
+#### Why Validate Hour Range?
+
+12-hour format validation catches common data corruption issues. If a folder has "1300 PM", it likely indicates:
+- Data corruption during export
+- Manual folder renaming gone wrong
+- Incompatible LMS export format
+
+Early detection with clear error messages helps administrators fix data issues before bulk grading begins.
+
+#### Why Support Both "Sep" and "Sept"?
+
+Real-world LMS exports show variation in September abbreviation:
+- Some systems use "Sep" (standard 3-letter abbreviation)
+- Others use "Sept" (common 4-letter variant)
+
+Supporting both reduces false negatives without ambiguity (no other month starts with "Sept").
+
+#### Why Support 1-2 Digit Times?
+
+Some LMS platforms omit leading zeros in time exports:
+- "1 AM" instead of "01 AM"
+- "12 PM" instead of "12 PM"
+- "945 AM" instead of "0945 AM"
+
+Supporting multiple formats improves compatibility across institutions and LMS versions.
+
+### Testing
+
+Comprehensive unit tests cover:
+
+- **Standard formats**: 3-4 digit times, full month names
+- **Time variations**: 1, 2, 3, and 4 digit time formats
+- **Month variations**: All full names and abbreviations including "Sept"
+- **Special names**: Accents, hyphens, apostrophes, multi-part names
+- **Edge cases**: Extra spaces, minimal IDs, single-word names
+- **Validation**: Invalid hours, minutes, days, months, formats
+- **Error messages**: Correct error types and descriptive messages
+
+**Run tests**:
+```bash
+# Unit tests
+pytest test/test_bulk_grader.py::TestSubmissionParsing -v
+
+# Integration tests  
+pytest test/integration/test_bulk_grading.py -v
+```
+
+### Performance Considerations
+
+The parser is called once per submission folder during bulk grading initialization:
+
+- **Regex matching**: O(n) where n = folder name length (typically <100 chars)
+- **Time parsing**: O(1) simple integer operations
+- **Datetime validation**: O(1) Python datetime construction
+- **Overall**: Negligible compared to compilation and test execution
+
+For 100 students with ~150 character folder names: <1ms total parsing time.
+
+### Future Enhancements
+
+Potential improvements for future versions:
+
+1. **Configurable formats**: Support custom folder name patterns via configuration
+2. **European date support**: Optional DD/MM/YYYY parsing with explicit configuration
+3. **24-hour time**: Support 24-hour time format (1430 for 2:30 PM)
+4. **Timezone handling**: Parse and preserve timezone information if present
+5. **Locale support**: Localized month names (e.g., "Mai" for May in German)
+
+### References
+
+- LMS folder naming conventions: Brightspace, Canvas, Blackboard export formats
+- Python datetime documentation: https://docs.python.org/3/library/datetime.html
+- Regex patterns: https://docs.python.org/3/library/re.html
+
+---
+
 ## Student Matching Services
 
 The student matching functionality has been refactored into modular, reusable domain services that support different matching strategies.
