@@ -16,8 +16,11 @@ from .protocols import (
 )
 from .services import (
     CompositeStudentMatcher,
+    DropLowestGradingStrategy,
     ExactStudentMatcher,
     FuzzyStudentMatcher,
+    SimpleGradingStrategy,
+    WeightedGradingStrategy,
     normalize_name,
 )
 
@@ -36,7 +39,10 @@ __all__ = [
     "TestOutputParser",
     # Services
     "CompositeStudentMatcher",
+    "DropLowestGradingStrategy",
     "ExactStudentMatcher",
     "FuzzyStudentMatcher",
+    "SimpleGradingStrategy",
+    "WeightedGradingStrategy",
     "normalize_name",
 ]
