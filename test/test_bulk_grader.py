@@ -506,9 +506,7 @@ class TestSubmissionParsing:
 
         # Invalid hour (13 in 12-hour format)
         with pytest.raises(ValueError, match="Invalid hour"):
-            parse_submission_folder_name(
-                "152711-351765 - Name - May 1, 2025 1300 PM"
-            )
+            parse_submission_folder_name("152711-351765 - Name - May 1, 2025 1300 PM")
 
         # Invalid hour (0 in 12-hour format)
         with pytest.raises(ValueError, match="Invalid hour"):
@@ -516,15 +514,11 @@ class TestSubmissionParsing:
 
         # Invalid minute
         with pytest.raises(ValueError, match="Invalid minute"):
-            parse_submission_folder_name(
-                "152711-351765 - Name - May 1, 2025 1260 PM"
-            )
+            parse_submission_folder_name("152711-351765 - Name - May 1, 2025 1260 PM")
 
         # Time too long (5 digits) - rejected by regex pattern
         with pytest.raises(ValueError, match="doesn't match expected format"):
-            parse_submission_folder_name(
-                "152711-351765 - Name - May 1, 2025 12345 PM"
-            )
+            parse_submission_folder_name("152711-351765 - Name - May 1, 2025 12345 PM")
 
         # Missing AM/PM
         with pytest.raises(ValueError, match="doesn't match expected format"):

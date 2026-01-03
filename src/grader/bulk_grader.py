@@ -112,7 +112,9 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
         ValueError: If folder name doesn't match expected format or contains invalid values
     """
     # Pattern to match the folder name format
-    pattern = r"^\d+-\d+\s*-\s*(.+?)\s*-\s*(\w+)\s+(\d+),\s*(\d+)\s+(\d{1,4})\s*(AM|PM)$"
+    pattern = (
+        r"^\d+-\d+\s*-\s*(.+?)\s*-\s*(\w+)\s+(\d+),\s*(\d+)\s+(\d{1,4})\s*(AM|PM)$"
+    )
 
     match = re.match(pattern, folder_name)
     if not match:
@@ -149,9 +151,7 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
         hour = int(time_str[0:2])
         minute = int(time_str[2:4])
     else:
-        raise ValueError(
-            f"Invalid time format: {time_str}. Time must be 1-4 digits."
-        )
+        raise ValueError(f"Invalid time format: {time_str}. Time must be 1-4 digits.")
 
     # Validate hour and minute ranges before AM/PM conversion
     if hour < 1 or hour > 12:
