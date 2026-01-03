@@ -16,9 +16,13 @@ from .protocols import (
 )
 from .services import (
     CompositeStudentMatcher,
+    CompositeTestOutputParser,
+    CustomPatternTestOutputParser,
     DropLowestGradingStrategy,
     ExactStudentMatcher,
     FuzzyStudentMatcher,
+    JUnitXMLTestOutputParser,
+    RegexTestOutputParser,
     SimpleGradingStrategy,
     WeightedGradingStrategy,
     normalize_name,
@@ -39,9 +43,13 @@ __all__ = [
     "TestOutputParser",
     # Services
     "CompositeStudentMatcher",
+    "CompositeTestOutputParser",
+    "CustomPatternTestOutputParser",
     "DropLowestGradingStrategy",
     "ExactStudentMatcher",
     "FuzzyStudentMatcher",
+    "JUnitXMLTestOutputParser",
+    "RegexTestOutputParser",
     "SimpleGradingStrategy",
     "WeightedGradingStrategy",
     "normalize_name",
