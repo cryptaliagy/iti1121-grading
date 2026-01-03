@@ -65,7 +65,10 @@ def demo_weighted_strategy():
     # Test results: {category_name: (points_earned, points_possible)}
     test_results = {
         "labs": (19.0, 20.0),  # Combined: Lab1 (10/10) + Lab2 (9/10) = 95%
-        "assignments": (34.0, 40.0),  # Combined: Assign1 (18/20) + Assign2 (16/20) = 85%
+        "assignments": (
+            34.0,
+            40.0,
+        ),  # Combined: Assign1 (18/20) + Assign2 (16/20) = 85%
         "project": (27.0, 30.0),  # 90%
     }
 
@@ -81,13 +84,19 @@ def demo_weighted_strategy():
         print(f"  {category_name}: {earned}/{possible} ({percentage:.1f}%)")
 
     print(f"\nWeighted final grade: {grade:.1f}%")
-    
+
     # Show calculation
     print("\nCalculation:")
-    print(f"  Labs: {19/20:.3f} * {weights['labs']} = {(19/20) * weights['labs']:.3f}")
-    print(f"  Assignments: {34/40:.3f} * {weights['assignments']} = {(34/40) * weights['assignments']:.3f}")
-    print(f"  Project: {27/30:.3f} * {weights['project']} = {(27/30) * weights['project']:.3f}")
-    print(f"  Total: {grade/100:.3f} = {grade:.1f}%")
+    print(
+        f"  Labs: {19 / 20:.3f} * {weights['labs']} = {(19 / 20) * weights['labs']:.3f}"
+    )
+    print(
+        f"  Assignments: {34 / 40:.3f} * {weights['assignments']} = {(34 / 40) * weights['assignments']:.3f}"
+    )
+    print(
+        f"  Project: {27 / 30:.3f} * {weights['project']} = {(27 / 30) * weights['project']:.3f}"
+    )
+    print(f"  Total: {grade / 100:.3f} = {grade:.1f}%")
 
 
 def demo_drop_lowest_strategy():
