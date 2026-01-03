@@ -361,15 +361,173 @@ class TestSubmissionParsing:
 
         assert timestamp == datetime(2025, 7, 4, 0, 0)
 
+    def test_parse_submission_folder_name_time_formats(self):
+        """Test parsing various time formats."""
+        # 1-digit hour
+        folder_name = "152711-351765 - Test Student - May 1, 2025 1 AM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert timestamp == datetime(2025, 5, 1, 1, 0)
+
+        # 2-digit hour
+        folder_name = "152711-351765 - Test Student - May 1, 2025 12 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert timestamp == datetime(2025, 5, 1, 12, 0)
+
+        # 3-digit time (single digit hour with minutes)
+        folder_name = "152711-351765 - Test Student - May 1, 2025 100 AM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert timestamp == datetime(2025, 5, 1, 1, 0)
+
+        folder_name = "152711-351765 - Test Student - May 1, 2025 945 AM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert timestamp == datetime(2025, 5, 1, 9, 45)
+
+        # 4-digit time
+        folder_name = "152711-351765 - Test Student - May 1, 2025 1159 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert timestamp == datetime(2025, 5, 1, 23, 59)
+
+    def test_parse_submission_folder_name_months(self):
+        """Test parsing various month formats."""
+        # Full month names
+        months_full = {
+            "January": 1,
+            "February": 2,
+            "March": 3,
+            "April": 4,
+            "May": 5,
+            "June": 6,
+            "July": 7,
+            "August": 8,
+            "September": 9,
+            "October": 10,
+            "November": 11,
+            "December": 12,
+        }
+
+        for month_name, month_num in months_full.items():
+            folder_name = f"152711-351765 - Test - {month_name} 15, 2025 1200 PM"
+            name, timestamp = parse_submission_folder_name(folder_name)
+            assert timestamp.month == month_num
+
+        # Abbreviated months
+        months_abbr = {
+            "Jan": 1,
+            "Feb": 2,
+            "Mar": 3,
+            "Apr": 4,
+            "Jun": 6,
+            "Jul": 7,
+            "Aug": 8,
+            "Sep": 9,
+            "Sept": 9,  # Alternative abbreviation
+            "Oct": 10,
+            "Nov": 11,
+            "Dec": 12,
+        }
+
+        for month_abbr, month_num in months_abbr.items():
+            folder_name = f"152711-351765 - Test - {month_abbr} 15, 2025 1200 PM"
+            name, timestamp = parse_submission_folder_name(folder_name)
+            assert timestamp.month == month_num
+
+    def test_parse_submission_folder_name_special_names(self):
+        """Test parsing names with special characters."""
+        # Name with accents
+        folder_name = "152711-351765 - José María - May 18, 2025 1224 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert name == "José María"
+
+        # Name with hyphen
+        folder_name = "152711-351765 - Mary-Jane O'Connor - May 18, 2025 1224 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert name == "Mary-Jane O'Connor"
+
+        # Name with multiple parts
+        folder_name = "152711-351765 - Van Der Berg - May 18, 2025 1224 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert name == "Van Der Berg"
+
+        # Long name with many words
+        folder_name = (
+            "152711-351765 - Very Long Name With Many Words - May 18, 2025 1224 PM"
+        )
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert name == "Very Long Name With Many Words"
+
+        # Name with internal dashes
+        folder_name = "152711-351765 - Name With - Dash - May 18, 2025 1224 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert name == "Name With - Dash"
+
+    def test_parse_submission_folder_name_edge_cases(self):
+        """Test edge cases in folder name parsing."""
+        # Extra spaces (should be trimmed)
+        folder_name = "152711-351765  -  John Doe  -  May 18, 2025 1224 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert name == "John Doe"
+        assert timestamp == datetime(2025, 5, 18, 12, 24)
+
+        # Minimal ID numbers
+        folder_name = "1-2 - Test Student - May 18, 2025 1224 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert name == "Test Student"
+
+        # Single word name
+        folder_name = "152711-351765 - SingleName - May 18, 2025 1224 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert name == "SingleName"
+
     def test_parse_submission_folder_name_invalid(self):
         """Test parsing invalid folder names."""
-        with pytest.raises(ValueError):
+        # Completely wrong format
+        with pytest.raises(ValueError, match="doesn't match expected format"):
             parse_submission_folder_name("Invalid folder name")
 
-        with pytest.raises(ValueError):
+        # Invalid month
+        with pytest.raises(ValueError, match="Unknown month"):
             parse_submission_folder_name(
                 "123-456 - Name - InvalidMonth 1, 2025 1200 PM"
             )
+
+        # Alternative Sept abbreviation that's not in mapping (should work now)
+        folder_name = "152711-351765 - Name - Sept 1, 2025 1224 PM"
+        name, timestamp = parse_submission_folder_name(folder_name)
+        assert timestamp.month == 9
+
+        # Invalid day
+        with pytest.raises(ValueError, match="Invalid date/time values"):
+            parse_submission_folder_name("152711-351765 - Name - May 32, 2025 1224 PM")
+
+        # Invalid hour (13 in 12-hour format)
+        with pytest.raises(ValueError, match="Invalid hour"):
+            parse_submission_folder_name(
+                "152711-351765 - Name - May 1, 2025 1300 PM"
+            )
+
+        # Invalid hour (0 in 12-hour format)
+        with pytest.raises(ValueError, match="Invalid hour"):
+            parse_submission_folder_name("152711-351765 - Name - May 1, 2025 0 AM")
+
+        # Invalid minute
+        with pytest.raises(ValueError, match="Invalid minute"):
+            parse_submission_folder_name(
+                "152711-351765 - Name - May 1, 2025 1260 PM"
+            )
+
+        # Time too long (5 digits) - rejected by regex pattern
+        with pytest.raises(ValueError, match="doesn't match expected format"):
+            parse_submission_folder_name(
+                "152711-351765 - Name - May 1, 2025 12345 PM"
+            )
+
+        # Missing AM/PM
+        with pytest.raises(ValueError, match="doesn't match expected format"):
+            parse_submission_folder_name("152711-351765 - Name - May 1, 2025 1224")
+
+        # Day before month (European format - not supported)
+        with pytest.raises(ValueError, match="doesn't match expected format"):
+            parse_submission_folder_name("152711-351765 - Name - 18 May, 2025 1224 PM")
 
 
 class TestFileOperations:

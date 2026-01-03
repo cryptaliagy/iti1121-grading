@@ -96,6 +96,12 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
     Expected format: "<ignored>-<ignored> - <names> - <month> <day>, <year> <time> <AM/PM>"
     Example: "152711-351765 - John Doe - May 18, 2025 1224 PM"
 
+    Supports various time formats:
+    - 1-digit: "1 AM" -> 01:00
+    - 2-digit: "12 AM" -> 00:00
+    - 3-digit: "130 PM" -> 13:30
+    - 4-digit: "1224 PM" -> 12:24
+
     Args:
         folder_name: The folder name to parse
 
@@ -103,14 +109,17 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
         Tuple of (student_name, timestamp)
 
     Raises:
-        ValueError: If folder name doesn't match expected format
+        ValueError: If folder name doesn't match expected format or contains invalid values
     """
     # Pattern to match the folder name format
-    pattern = r"^\d+-\d+\s*-\s*(.+?)\s*-\s*(\w+)\s+(\d+),\s*(\d+)\s+(\d+)\s*(AM|PM)$"
+    pattern = r"^\d+-\d+\s*-\s*(.+?)\s*-\s*(\w+)\s+(\d+),\s*(\d+)\s+(\d{1,4})\s*(AM|PM)$"
 
     match = re.match(pattern, folder_name)
     if not match:
-        raise ValueError(f"Folder name '{folder_name}' doesn't match expected format")
+        raise ValueError(
+            f"Folder name '{folder_name}' doesn't match expected format. "
+            f"Expected: '<id>-<id> - <name> - <month> <day>, <year> <time> <AM/PM>'"
+        )
 
     student_name = match.group(1).strip()
     month_str = match.group(2)
@@ -119,8 +128,16 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
     time_str = match.group(5)
     am_pm = match.group(6)
 
-    # Parse time
-    if len(time_str) == 3:
+    # Parse time - support 1-4 digit formats
+    if len(time_str) == 1:
+        # Format like "1" -> "1:00"
+        hour = int(time_str)
+        minute = 0
+    elif len(time_str) == 2:
+        # Format like "12" -> "12:00"
+        hour = int(time_str)
+        minute = 0
+    elif len(time_str) == 3:
         # Format like "130" -> "1:30"
         hour = int(time_str[0])
         minute = int(time_str[1:3])
@@ -129,7 +146,17 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
         hour = int(time_str[0:2])
         minute = int(time_str[2:4])
     else:
-        raise ValueError(f"Invalid time format: {time_str}")
+        raise ValueError(
+            f"Invalid time format: {time_str}. Time must be 1-4 digits."
+        )
+
+    # Validate hour and minute ranges before AM/PM conversion
+    if hour < 1 or hour > 12:
+        raise ValueError(
+            f"Invalid hour: {hour}. Hour must be between 1 and 12 in 12-hour format."
+        )
+    if minute < 0 or minute > 59:
+        raise ValueError(f"Invalid minute: {minute}. Minute must be between 0 and 59.")
 
     # Convert to 24-hour format
     if am_pm == "PM" and hour != 12:
@@ -137,7 +164,7 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
     elif am_pm == "AM" and hour == 12:
         hour = 0
 
-    # Parse month
+    # Parse month - comprehensive mapping including common abbreviations
     month_mapping = {
         "January": 1,
         "February": 2,
@@ -159,6 +186,7 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
         "Jul": 7,
         "Aug": 8,
         "Sep": 9,
+        "Sept": 9,  # Alternative September abbreviation
         "Oct": 10,
         "Nov": 11,
         "Dec": 12,
@@ -166,9 +194,18 @@ def parse_submission_folder_name(folder_name: str) -> tuple[str, datetime]:
 
     month = month_mapping.get(month_str)
     if month is None:
-        raise ValueError(f"Unknown month: {month_str}")
+        raise ValueError(
+            f"Unknown month: {month_str}. Expected full month name or standard abbreviation."
+        )
 
-    timestamp = datetime(year, month, day, hour, minute)
+    # Create datetime object - will raise ValueError if date is invalid
+    try:
+        timestamp = datetime(year, month, day, hour, minute)
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid date/time values: year={year}, month={month}, day={day}, "
+            f"hour={hour}, minute={minute}. Error: {e}"
+        )
 
     return student_name, timestamp
 
