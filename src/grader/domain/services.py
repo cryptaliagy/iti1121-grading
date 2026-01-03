@@ -656,9 +656,9 @@ class CustomPatternTestOutputParser:
                             earned, possible = handler(match)
                             total_points += earned
                             possible_points += possible
-                        except Exception:  # nosec: B110
+                        except Exception:  # nosec: B112
                             # Skip patterns that fail - intentional for robustness
-                            continue  # nosec: B112
+                            continue  # nosec: B110
 
             return total_points, possible_points
 
@@ -711,7 +711,7 @@ class CompositeTestOutputParser:
                 total_points, possible_points = parser.parse_output(output)
                 if possible_points > 0:
                     return total_points, possible_points
-            except Exception:  # nosec: B110
+            except Exception:  # nosec: B112
                 # If parser fails, try the next one - intentional for robustness
                 continue  # nosec: B112
 
