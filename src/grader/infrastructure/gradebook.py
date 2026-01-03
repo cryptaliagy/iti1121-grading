@@ -104,9 +104,7 @@ class CSVGradebookRepository:
 
         # Clean usernames
         output_df["Username"] = output_df["Username"].astype(str).str.strip("#")
-        output_df["OrgDefinedId"] = (
-            output_df["OrgDefinedId"].astype(str).str.strip("#")
-        )
+        output_df["OrgDefinedId"] = output_df["OrgDefinedId"].astype(str).str.strip("#")
 
         # Create a lookup for results by username
         results_lookup = {

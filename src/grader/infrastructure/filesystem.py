@@ -3,7 +3,6 @@
 import shutil
 import stat
 from pathlib import Path
-from typing import Iterator
 
 
 class LocalFileSystem:
@@ -86,7 +85,7 @@ class LocalFileSystem:
         """
         if not directory.exists():
             raise FileNotFoundError(f"Directory {directory} does not exist")
-        
+
         return sorted(directory.glob(pattern))
 
     def ensure_directory(self, path: Path) -> None:
@@ -114,7 +113,7 @@ class LocalFileSystem:
         """
         if not path.exists():
             raise FileNotFoundError(f"Path {path} does not exist")
-        
+
         # Add write permissions for the owner
         current_mode = path.stat().st_mode
         path.chmod(current_mode | stat.S_IWUSR)
@@ -206,7 +205,7 @@ class InMemoryFileSystem:
             # Allow root directory to always exist
             if directory != Path("/") and directory != Path():
                 raise FileNotFoundError(f"Directory {directory} does not exist")
-        
+
         # Simple pattern matching - just support "*" and "*.ext" for now
         results = []
         for file_path in self._files.keys():
@@ -221,7 +220,7 @@ class InMemoryFileSystem:
                         results.append(file_path)
                 elif file_path.name == pattern:
                     results.append(file_path)
-        
+
         return sorted(results)
 
     def ensure_directory(self, path: Path) -> None:

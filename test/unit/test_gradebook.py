@@ -4,11 +4,13 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from grader.domain.models import Student, StudentId, GradingResult, TestResult
+from grader.domain.models import Student, StudentId, GradingResult
 from grader.infrastructure.gradebook import CSVGradebookRepository
 
 
-def create_test_csv(csv_path: Path, rows: list[dict], include_header: bool = True) -> None:
+def create_test_csv(
+    csv_path: Path, rows: list[dict], include_header: bool = True
+) -> None:
     """
     Create a test CSV file.
 

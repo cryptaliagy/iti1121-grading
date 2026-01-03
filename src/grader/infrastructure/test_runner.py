@@ -3,7 +3,6 @@
 import os
 import subprocess  # nosec: B404
 import time
-from pathlib import Path
 
 from grader.domain.models import TestRunOutput
 from grader.infrastructure.protocols import TestRunnerConfig

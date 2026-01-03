@@ -70,9 +70,7 @@ class ZipSubmissionProcessor:
             ValueError: If no Java or ZIP files found
         """
         if not submission_path.exists():
-            raise FileNotFoundError(
-                f"Submission path {submission_path} does not exist"
-            )
+            raise FileNotFoundError(f"Submission path {submission_path} does not exist")
 
         # Create grading directory for this submission
         target_dir = grading_dir / submission_path.name
