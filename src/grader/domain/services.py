@@ -1,10 +1,13 @@
 """Domain services for the grading system."""
 
-from typing import Protocol
+from typing import TYPE_CHECKING
 from thefuzz import fuzz, process
 from unidecode import unidecode
 
 from .models import Student
+
+if TYPE_CHECKING:
+    from .protocols import StudentMatcher
 
 
 def normalize_name(name: str) -> str:
@@ -170,7 +173,7 @@ class CompositeStudentMatcher:
         'jdoe'
     """
 
-    def __init__(self, matchers: list["StudentMatcherProtocol"]):
+    def __init__(self, matchers: list["StudentMatcher"]):
         """
         Initialize composite matcher with a list of matchers.
 
@@ -199,23 +202,3 @@ class CompositeStudentMatcher:
                 return result
 
         return None
-
-
-class StudentMatcherProtocol(Protocol):
-    """Protocol for student matching strategies."""
-
-    def find_match(
-        self, target_name: str, candidates: list[Student], threshold: int = 80
-    ) -> Student | None:
-        """
-        Find the best matching student.
-
-        Args:
-            target_name: The name to match against
-            candidates: List of candidate students
-            threshold: Minimum match score (0-100)
-
-        Returns:
-            Best matching student or None if no good match found
-        """
-        ...
