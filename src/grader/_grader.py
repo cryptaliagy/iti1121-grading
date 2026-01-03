@@ -12,6 +12,8 @@ import rich
 
 import typer
 
+from .domain import RegexTestOutputParser
+
 app = typer.Typer(help="CLI for compiling and running Java test files")
 
 # Constants
@@ -267,28 +269,20 @@ def calculate_grade_from_output(output: str) -> tuple[float, float]:
     """
     Parse the test output to calculate the total grade.
 
+    This is a backward-compatible wrapper around the domain service implementation.
+    New code should use RegexTestOutputParser from grader.domain instead.
+
     Args:
         output: The output string from the test execution
 
     Returns:
         Tuple containing total points and possible points
+
+    See Also:
+        grader.domain.RegexTestOutputParser: Domain service implementation
     """
-    total_points = 0.0
-    possible_points = 0.0
-
-    grade_pattern = re.compile(
-        r"Grade for .+ \(out of (a\s+)?possible (?P<max>\d+(\.\d+)?)\): (?P<total>\d+(\.\d+)?)"
-    )
-
-    for line in output.split("\n"):
-        match = grade_pattern.search(line)
-        if match:
-            possible = float(match.group("max"))
-            achieved = float(match.group("total"))
-            total_points += achieved
-            possible_points += possible
-
-    return total_points, possible_points
+    parser = RegexTestOutputParser()
+    return parser.parse_output(output)
 
 
 def display_grade_summary(

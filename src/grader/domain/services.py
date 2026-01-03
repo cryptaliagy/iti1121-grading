@@ -1,13 +1,15 @@
 """Domain services for the grading system."""
 
-from typing import TYPE_CHECKING
+import re
+import xml.etree.ElementTree as ET
+from typing import TYPE_CHECKING, Callable
 from thefuzz import fuzz, process
 from unidecode import unidecode
 
 from .models import Student
 
 if TYPE_CHECKING:
-    from .protocols import StudentMatcher
+    from .protocols import StudentMatcher, TestOutputParser
 
 
 def normalize_name(name: str) -> str:
@@ -408,3 +410,309 @@ class DropLowestGradingStrategy:
             return 0.0
 
         return (total_earned / total_possible) * 100
+
+
+class RegexTestOutputParser:
+    """
+    Regex-based test output parser with customizable patterns.
+
+    This parser uses regular expressions to extract test scores from output.
+    It's highly flexible and can be customized with different patterns to
+    match various test output formats.
+
+    The default pattern matches the format used by the ITI1121 grading system:
+    "Grade for <name> (out of [a] possible <max>): <total>"
+
+    Examples:
+        >>> parser = RegexTestOutputParser()
+        >>> output = "Grade for Test1 (out of possible 10): 8\\n"
+        >>> points, possible = parser.parse_output(output)
+        >>> points, possible
+        (8.0, 10.0)
+
+        >>> # Custom pattern for different format
+        >>> custom_pattern = r"Test: (?P<total>\\d+)/(?P<max>\\d+)"
+        >>> parser = RegexTestOutputParser(custom_pattern)
+        >>> output = "Test: 42/50\\n"
+        >>> points, possible = parser.parse_output(output)
+        >>> points, possible
+        (42.0, 50.0)
+    """
+
+    DEFAULT_PATTERN = (
+        r"Grade for .+ \(out of (a\s+)?possible (?P<max>\d+(\.\d+)?)\): "
+        r"(?P<total>\d+(\.\d+)?)"
+    )
+
+    def __init__(self, pattern: str | None = None, flags: int = 0):
+        """
+        Initialize the regex parser with a pattern.
+
+        Args:
+            pattern: Regular expression pattern with named groups 'total' and 'max'
+                    If None, uses the default ITI1121 pattern
+            flags: Optional regex flags (e.g., re.IGNORECASE, re.MULTILINE)
+        """
+        self.pattern = pattern or self.DEFAULT_PATTERN
+        self.regex = re.compile(self.pattern, flags)
+
+    def parse_output(self, output: str) -> tuple[float, float]:
+        """
+        Parse test output to extract total points and possible points.
+
+        The pattern must have named groups 'total' (points earned) and
+        'max' (points possible). The parser sums all matches found in the output.
+
+        Args:
+            output: The test output string to parse
+
+        Returns:
+            Tuple of (total_points_earned, total_points_possible)
+        """
+        total_points = 0.0
+        possible_points = 0.0
+
+        for line in output.split("\n"):
+            match = self.regex.search(line)
+            if match:
+                try:
+                    possible = float(match.group("max"))
+                    achieved = float(match.group("total"))
+                    total_points += achieved
+                    possible_points += possible
+                except (KeyError, ValueError, IndexError):
+                    # Skip lines that don't have the expected groups or invalid numbers
+                    continue
+
+        return total_points, possible_points
+
+
+class JUnitXMLTestOutputParser:
+    """
+    Parser for JUnit XML test output format.
+
+    This parser extracts test results from JUnit XML format, which is
+    commonly used by Java testing frameworks like JUnit and TestNG.
+
+    The parser looks for <testsuite> and <testcase> elements to calculate
+    total points. By default, each passing test is worth 1 point, but this
+    can be customized.
+
+    Security Note:
+        This parser uses xml.etree.ElementTree to parse test output. It should
+        only be used with trusted test output from your own test runners, not
+        with arbitrary XML from untrusted sources.
+
+    Examples:
+        >>> parser = JUnitXMLTestOutputParser()
+        >>> xml = '''<?xml version="1.0"?>
+        ... <testsuites>
+        ...   <testsuite tests="3" failures="1" errors="0">
+        ...     <testcase name="test1" />
+        ...     <testcase name="test2">
+        ...       <failure message="Expected 5 but got 3" />
+        ...     </testcase>
+        ...     <testcase name="test3" />
+        ...   </testsuite>
+        ... </testsuites>'''
+        >>> points, possible = parser.parse_output(xml)
+        >>> points, possible
+        (2.0, 3.0)
+    """
+
+    def __init__(self, points_per_test: float = 1.0):
+        """
+        Initialize the JUnit XML parser.
+
+        Args:
+            points_per_test: Points awarded per passing test (default: 1.0)
+        """
+        self.points_per_test = points_per_test
+
+    def parse_output(self, output: str) -> tuple[float, float]:
+        """
+        Parse JUnit XML output to extract test results.
+
+        Args:
+            output: JUnit XML formatted test output
+
+        Returns:
+            Tuple of (total_points_earned, total_points_possible)
+        """
+        total_points = 0.0
+        possible_points = 0.0
+
+        try:
+            # Try to parse as XML
+            # Note: This is safe because we only parse test output from trusted sources
+            root = ET.fromstring(output)  # nosec: B314
+
+            # Handle both <testsuites> and <testsuite> as root
+            if root.tag == "testsuites":
+                testsuites = root.findall("testsuite")
+            elif root.tag == "testsuite":
+                testsuites = [root]
+            else:
+                return 0.0, 0.0
+
+            for testsuite in testsuites:
+                testcases = testsuite.findall("testcase")
+
+                for testcase in testcases:
+                    possible_points += self.points_per_test
+
+                    # Check if test passed (no failure or error elements)
+                    failures = testcase.findall("failure")
+                    errors = testcase.findall("error")
+
+                    if not failures and not errors:
+                        total_points += self.points_per_test
+
+        except ET.ParseError:
+            # If output is not valid XML, return 0,0
+            return 0.0, 0.0
+
+        return total_points, possible_points
+
+
+class CustomPatternTestOutputParser:
+    """
+    Parser that supports custom user-defined patterns with flexible scoring.
+
+    This parser allows users to define custom extraction functions to parse
+    test output in any format. It's the most flexible option for handling
+    non-standard test output formats.
+
+    Examples:
+        >>> # Simple function-based pattern
+        >>> def parse_scores(output):
+        ...     # Parse format like "PASSED: 8/10"
+        ...     if "PASSED:" in output:
+        ...         parts = output.split("PASSED:")[1].strip().split("/")
+        ...         return float(parts[0]), float(parts[1])
+        ...     return 0.0, 0.0
+        >>> parser = CustomPatternTestOutputParser(parse_scores)
+        >>> points, possible = parser.parse_output("PASSED: 8/10")
+        >>> points, possible
+        (8.0, 10.0)
+
+        >>> # Multiple patterns with different scoring
+        >>> patterns = [
+        ...     (r"Passed: (\\d+)", lambda m: (float(m.group(1)), float(m.group(1)))),
+        ...     (r"Failed: (\\d+)", lambda m: (0.0, float(m.group(1)))),
+        ... ]
+        >>> parser = CustomPatternTestOutputParser(patterns)
+    """
+
+    def __init__(
+        self,
+        parse_func: Callable[[str], tuple[float, float]]
+        | list[tuple[str, Callable]]
+        | None = None,
+    ):
+        """
+        Initialize the custom pattern parser.
+
+        Args:
+            parse_func: Either:
+                - A callable that takes output string and returns (earned, possible)
+                - A list of (pattern, match_handler) tuples where match_handler
+                  receives a regex match object and returns (earned, possible)
+                - None to use a pass-through parser that returns (0, 0)
+        """
+        self.parse_func = parse_func
+
+    def parse_output(self, output: str) -> tuple[float, float]:
+        """
+        Parse test output using the custom parsing function.
+
+        Args:
+            output: The test output string to parse
+
+        Returns:
+            Tuple of (total_points_earned, total_points_possible)
+        """
+        if self.parse_func is None:
+            return 0.0, 0.0
+
+        # Handle function-based parsing
+        if callable(self.parse_func):
+            try:
+                return self.parse_func(output)
+            except Exception:
+                return 0.0, 0.0
+
+        # Handle pattern-based parsing
+        if isinstance(self.parse_func, list):
+            total_points = 0.0
+            possible_points = 0.0
+
+            for pattern, handler in self.parse_func:
+                regex = re.compile(pattern)
+                for line in output.split("\n"):
+                    match = regex.search(line)
+                    if match:
+                        try:
+                            earned, possible = handler(match)
+                            total_points += earned
+                            possible_points += possible
+                        except Exception:  # nosec: B110
+                            # Skip patterns that fail - intentional for robustness
+                            continue  # nosec: B112
+
+            return total_points, possible_points
+
+        return 0.0, 0.0
+
+
+class CompositeTestOutputParser:
+    """
+    Composite parser that tries multiple parsers in sequence.
+
+    This parser applies a chain of parsers, using the first one that
+    returns a non-zero result. This is useful for handling multiple
+    test output formats or having fallback parsing strategies.
+
+    Examples:
+        >>> junit_parser = JUnitXMLTestOutputParser()
+        >>> regex_parser = RegexTestOutputParser()
+        >>> composite = CompositeTestOutputParser([junit_parser, regex_parser])
+        >>> # Will try JUnit first, then regex if JUnit returns 0,0
+        >>> output = "Grade for Test1 (out of possible 10): 8"
+        >>> points, possible = composite.parse_output(output)
+        >>> points, possible
+        (8.0, 10.0)
+    """
+
+    def __init__(self, parsers: list["TestOutputParser"]):
+        """
+        Initialize composite parser with a list of parsers.
+
+        Args:
+            parsers: List of parsers to try in sequence
+        """
+        self.parsers = parsers
+
+    def parse_output(self, output: str) -> tuple[float, float]:
+        """
+        Parse output using the first parser that returns a non-zero result.
+
+        Tries each parser in sequence until one returns points_possible > 0.
+        If all parsers return (0, 0), returns (0, 0).
+
+        Args:
+            output: The test output string to parse
+
+        Returns:
+            Tuple of (total_points_earned, total_points_possible)
+        """
+        for parser in self.parsers:
+            try:
+                total_points, possible_points = parser.parse_output(output)
+                if possible_points > 0:
+                    return total_points, possible_points
+            except Exception:  # nosec: B110
+                # If parser fails, try the next one - intentional for robustness
+                continue  # nosec: B112
+
+        return 0.0, 0.0
