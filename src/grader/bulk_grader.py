@@ -213,14 +213,14 @@ def find_best_name_match(
         grader.domain.services.FuzzyStudentMatcher: Domain service implementation
     """
     # Create temporary Student objects for matching
-    candidates = [
-        Student(
-            StudentId(str(i), f"temp_{i}"),
-            first_name=name.split()[0] if name.split() else name,
-            last_name=" ".join(name.split()[1:]) if len(name.split()) > 1 else "",
+    candidates = []
+    for i, name in enumerate(candidate_names):
+        parts = name.split()
+        first_name = parts[0] if parts else name
+        last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
+        candidates.append(
+            Student(StudentId(str(i), f"temp_{i}"), first_name, last_name)
         )
-        for i, name in enumerate(candidate_names)
-    ]
 
     matcher = FuzzyStudentMatcher()
     result = matcher.find_match(target_name, candidates, threshold)
