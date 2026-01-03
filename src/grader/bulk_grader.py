@@ -11,8 +11,6 @@ from pathlib import Path
 
 import pandas as pd
 import typer
-from thefuzz import fuzz, process
-from unidecode import unidecode
 
 from ._grader import (
     Writer,
@@ -25,6 +23,8 @@ from ._grader import (
     CodeFilePreprocessingOptions,
     collect_code_files,
 )
+from .domain import normalize_name as domain_normalize_name
+from .domain import FuzzyStudentMatcher, Student, StudentId
 
 app = typer.Typer(help="Bulk grader for processing multiple student submissions")
 
@@ -177,17 +177,19 @@ def normalize_name(name: str) -> str:
     """
     Normalize a name for comparison by removing accents and converting to lowercase.
 
+    This is a backward-compatible wrapper around the domain service implementation.
+    New code should import from grader.domain.services instead.
+
     Args:
         name: The name to normalize
 
     Returns:
         Normalized name
+
+    See Also:
+        grader.domain.services.normalize_name: Domain service implementation
     """
-    # Convert unicode characters to ASCII equivalents
-    normalized = unidecode(name)
-    # Convert to lowercase and remove extra whitespace
-    normalized = " ".join(normalized.lower().split())
-    return normalized
+    return domain_normalize_name(name)
 
 
 def find_best_name_match(
@@ -196,6 +198,9 @@ def find_best_name_match(
     """
     Find the best matching name using fuzzy string matching.
 
+    This is a backward-compatible wrapper around the domain service implementation.
+    New code should use FuzzyStudentMatcher from grader.domain.services instead.
+
     Args:
         target_name: The name to match against
         candidate_names: List of candidate names
@@ -203,22 +208,26 @@ def find_best_name_match(
 
     Returns:
         Best matching name or None if no good match found
+
+    See Also:
+        grader.domain.services.FuzzyStudentMatcher: Domain service implementation
     """
-    normalized_target = normalize_name(target_name)
-    normalized_candidates = [normalize_name(name) for name in candidate_names]
+    # Create temporary Student objects for matching
+    candidates = []
+    for i, name in enumerate(candidate_names):
+        parts = name.split()
+        first_name = parts[0] if parts else name
+        last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
+        candidates.append(
+            Student(StudentId(str(i), f"temp_{i}"), first_name, last_name)
+        )
 
-    # Try exact match first
-    if normalized_target in normalized_candidates:
-        idx = normalized_candidates.index(normalized_target)
-        return candidate_names[idx]
+    matcher = FuzzyStudentMatcher()
+    result = matcher.find_match(target_name, candidates, threshold)
 
-    # Try fuzzy matching
-    ## Mypy can't figure out if process has extractOne method, so we use type: ignore
-    result = process.extractOne(  # type: ignore
-        normalized_target, normalized_candidates, scorer=fuzz.ratio
-    )
-    if result and result[1] >= threshold:
-        idx = normalized_candidates.index(result[0])
+    if result is not None:
+        # Find the original name
+        idx = int(result.student_id.org_defined_id)
         return candidate_names[idx]
 
     return None
