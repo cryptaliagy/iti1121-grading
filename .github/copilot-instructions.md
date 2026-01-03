@@ -67,6 +67,15 @@ pyproject.toml       # Package configuration
 - Import types from `typing` module as needed
 - Use `pandas` type stubs for DataFrame operations
 
+### Pull Request Etiquette
+
+- Try to keep PRs small and focused
+- If large changes are needed, break into multiple PRs
+- Provide clear descriptions of changes
+- Reference related issues or tasks
+- Ensure all tests pass before requesting review
+- Ensure code quality checks pass
+
 ## Testing Guidelines
 
 ### Running Tests
