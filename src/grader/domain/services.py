@@ -135,8 +135,7 @@ class FuzzyStudentMatcher:
             return candidates[idx]
 
         # Try fuzzy matching
-        ## Mypy can't figure out if process has extractOne method, so we use type: ignore
-        result = process.extractOne(  # type: ignore
+        result = process.extractOne(
             normalized_target, normalized_candidates, scorer=fuzz.ratio
         )
         if result and result[1] >= threshold:
