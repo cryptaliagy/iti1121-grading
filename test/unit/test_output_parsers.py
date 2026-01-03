@@ -2,7 +2,6 @@
 
 """Unit tests for test output parsers."""
 
-
 from grader.domain import (
     CompositeTestOutputParser,
     CustomPatternTestOutputParser,

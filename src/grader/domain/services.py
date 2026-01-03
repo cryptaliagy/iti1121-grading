@@ -1,7 +1,7 @@
 """Domain services for the grading system."""
 
 import re
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec: B405
 from typing import TYPE_CHECKING, Callable
 from thefuzz import fuzz, process
 from unidecode import unidecode
